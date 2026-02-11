@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Corporativo Profesional</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1>Dashboard Corporativo</h1>
+                <div class="header-info">
+                    <span id="lastUpdate">Última actualización: --:--:--</span>
+                    <span class="status-indicator">●</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="dashboard-main">
+            <!-- Chart Section - Priority -->
+            <section class="chart-section">
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h2>Análisis de Tendencias en Tiempo Real</h2>
+                        <span class="update-badge">Actualización automática cada minuto</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="mainChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tables Section -->
+            <section class="tables-section">
+                <!-- Table 1: Ventas -->
+                <div class="card table-card">
+                    <div class="card-header">
+                        <h3>Departamento de Ventas</h3>
+                        <span class="metric-badge metric-ventas">Ventas</span>
+                    </div>
+                    <div class="card-body">
+                        <table class="data-table" id="table1">
+                            <thead>
+                                <tr>
+                                    <th>Período</th>
+                                    <th>Cantidad</th>
+                                    <th>Variación</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table1Body">
+                                <!-- Data populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Table 2: Producción -->
+                <div class="card table-card">
+                    <div class="card-header">
+                        <h3>Departamento de Producción</h3>
+                        <span class="metric-badge metric-produccion">Producción</span>
+                    </div>
+                    <div class="card-body">
+                        <table class="data-table" id="table2">
+                            <thead>
+                                <tr>
+                                    <th>Período</th>
+                                    <th>Cantidad</th>
+                                    <th>Variación</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table2Body">
+                                <!-- Data populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Table 3: Logística -->
+                <div class="card table-card">
+                    <div class="card-header">
+                        <h3>Departamento de Logística</h3>
+                        <span class="metric-badge metric-logistica">Logística</span>
+                    </div>
+                    <div class="card-body">
+                        <table class="data-table" id="table3">
+                            <thead>
+                                <tr>
+                                    <th>Período</th>
+                                    <th>Cantidad</th>
+                                    <th>Variación</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table3Body">
+                                <!-- Data populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer">
+            <p>&copy; 2024 Dashboard Corporativo - Datos actualizados en tiempo real</p>
+        </footer>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>
