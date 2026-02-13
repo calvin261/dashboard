@@ -64,7 +64,7 @@ El proyecto quedó preparado para Vercel usando funciones serverless en `api/`:
 1. Conecta el repositorio en Vercel.
 2. Framework Preset: **Other**.
 3. Build Command: `npm run vercel-build`
-4. Output Directory: *(vacío / default)*
+4. Output Directory: `public`
 5. Deploy.
 
 ### ¿Qué se despliega?

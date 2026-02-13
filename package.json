@@ -7,7 +7,7 @@
     "build": "npm run build:backend && npm run build:frontend",
     "build:backend": "tsc -p tsconfig.json",
     "build:frontend": "tsc -p tsconfig.frontend.json",
-    "vercel-build": "npm run build:frontend",
+    "vercel-build": "node scripts/vercel-build.mjs",
     "start": "npm run build && node dist/server.js",
     "dev": "npm run build:frontend && tsx watch server.ts",
     "test": "echo \"Sin pruebas automatizadas aún\""

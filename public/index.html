@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Eventos ATM</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="chart.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1>Dashboard Eventos ATM</h1>
+                <div class="header-info">
+                    <span id="lastUpdate">Última actualización: --:--:--</span>
+                    <span class="status-indicator">●</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="dashboard-main">
+            <!-- Chart Section - Priority -->
+            <section class="chart-section">
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h2>Comparativa: Promedio Histórico vs. Tiempo Real</h2>
+                        <span class="update-badge">Análisis de Tendencia</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="mainChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tables Section -->
+            <section class="tables-section">
+                <!-- Table 1: Histórico / Referencia -->
+                <div class="card table-card full-width">
+                    <div class="card-header">
+                        <h3>Datos de Referencia (Histórico)</h3>
+                        <span class="metric-badge metric-ventas">Referencia</span>
+                    </div>
+                    <div class="card-body">
+                        <table class="data-table" id="tableReference">
+                            <thead>
+                                <tr>
+                                    <th>Estado</th>
+                                    <th>Fecha</th>
+                                    <th>Tipo Dia</th>
+                                    <th>Dia</th>
+                                    <th>Mes</th>
+                                    <th>Año</th>
+                                    <th>Transaccion</th>
+                                    <th>Tipo Canal</th>
+                                    <th>Hora</th>
+                                    <th>Promedio</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableReferenceBody">
+                                <!-- Data populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Table 2: Actual / Transacciones -->
+                <div class="card table-card full-width">
+                    <div class="card-header">
+                        <h3>Transacciones en Tiempo Real</h3>
+                        <span class="metric-badge metric-produccion">En Vivo</span>
+                    </div>
+                    <div class="card-body">
+                        <table class="data-table" id="tableRealTime">
+                            <thead>
+                                <tr>
+                                    <th>Fecha Trx</th>
+                                    <th>Dia</th>
+                                    <th>Mes</th>
+                                    <th>Hora</th>
+                                    <th>Trx/Min</th>
+                                    <th>Transaccion</th>
+                                    <th>Tipo Canal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableRealTimeBody">
+                                <!-- Data populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer">
+            <p>&copy; 2024 Dashboard Corporativo - Datos actualizados en tiempo real</p>
+        </footer>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>
