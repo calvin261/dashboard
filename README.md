@@ -52,6 +52,33 @@ dashboard/
 
 Abrir: `http://localhost:3000`
 
+## ▲ Deploy en Vercel
+
+El proyecto quedó preparado para Vercel usando funciones serverless en `api/`:
+
+- `api/health.ts`
+- `api/dashboard/data.ts`
+
+### Flujo recomendado
+
+1. Conecta el repositorio en Vercel.
+2. Framework Preset: **Other**.
+3. Build Command: `npm run vercel-build`
+4. Output Directory: *(vacío / default)*
+5. Deploy.
+
+### ¿Qué se despliega?
+
+- Frontend estático desde raíz (`index.html`, `styles.css`, `dashboard.js`, `chart.js`)
+- API serverless en `/api/*`
+
+`vercel.json` ya incluye fallback para rutas no API hacia `index.html`.
+
+### Local vs Vercel
+
+- **Local**: usa `server.ts` (Express) con `npm run dev` / `npm start`.
+- **Vercel**: usa `api/*.ts` (serverless), sin ejecutar `server.ts`.
+
 ## 🔌 API disponible
 
 - `GET /api/health`
