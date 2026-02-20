@@ -19,6 +19,7 @@ export interface RealtimeRow {
     hora: number;
     minuto: number;
     trxPorMinuto: number;
+    trxDetalle: number;
     transaccion: string;
     tipoCanal: string;
 }
@@ -54,6 +55,7 @@ type LivePoint = {
     timestamp: Date;
     historical: number;
     realtime: number;
+    trxDetalle: number;
     transaccion: string;
     tipoCanal: string;
 };
@@ -159,6 +161,7 @@ function pushTick(timestamp: Date): void {
         timestamp,
         historical,
         realtime,
+        trxDetalle: randomInt(100000, 999999),
         transaccion: pickRandom(transactionCatalog),
         tipoCanal: pickRandom(channelCatalog)
     });
@@ -220,6 +223,7 @@ function buildRealtimeRows(points: LivePoint[]): RealtimeRow[] {
         hora: point.timestamp.getHours(),
         minuto: point.timestamp.getMinutes(),
         trxPorMinuto: point.realtime,
+        trxDetalle: point.trxDetalle,
         transaccion: point.transaccion,
         tipoCanal: point.tipoCanal
     }));

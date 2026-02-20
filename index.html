@@ -35,9 +35,48 @@
                 </div>
             </section>
 
+            <section class="chart-section">
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h2>Comparativa por Hora: Histórico vs. Actual</h2>
+                        <span class="update-badge">Vista Horaria</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="hourlyChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
             <!-- Tables Section -->
             <section class="tables-section">
-                <!-- Table 1: Histórico / Referencia -->
+                <!-- Table 1: Actual / Transacciones -->
+                <div class="card table-card full-width">
+                    <div class="card-header">
+                        <h3>Transacciones en Tiempo Real</h3>
+                        <span class="metric-badge metric-produccion">En Vivo</span>
+                    </div>
+                    <div class="card-body">
+                        <table class="data-table" id="tableRealTime">
+                            <thead>
+                                <tr>
+                                    <th>Fecha Trx</th>
+                                    <th>Dia</th>
+                                    <th>Mes</th>
+                                    <th>Hora</th>
+                                    <th>Minuto</th>
+                                    <th>Trx Por Minuto</th>
+                                    <th>Transaccion</th>
+                                    <th>Tipo Canal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableRealTimeBody">
+                                <!-- Data populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Table 2: Histórico / Referencia -->
                 <div class="card table-card full-width">
                     <div class="card-header">
                         <h3>Datos de Referencia (Histórico)</h3>
@@ -61,33 +100,6 @@
                                 </tr>
                             </thead>
                             <tbody id="tableReferenceBody">
-                                <!-- Data populated by JavaScript -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Table 2: Actual / Transacciones -->
-                <div class="card table-card full-width">
-                    <div class="card-header">
-                        <h3>Transacciones en Tiempo Real</h3>
-                        <span class="metric-badge metric-produccion">En Vivo</span>
-                    </div>
-                    <div class="card-body">
-                        <table class="data-table" id="tableRealTime">
-                            <thead>
-                                <tr>
-                                    <th>Fecha Trx</th>
-                                    <th>Dia</th>
-                                    <th>Mes</th>
-                                    <th>Hora</th>
-                                    <th>Minuto</th>
-                                    <th>Trx Por Minuto</th>
-                                    <th>Transaccion</th>
-                                    <th>Tipo Canal</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tableRealTimeBody">
                                 <!-- Data populated by JavaScript -->
                             </tbody>
                         </table>

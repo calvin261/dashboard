@@ -181,7 +181,8 @@ body {
     height: 430px;
 }
 
-#mainChart {
+#mainChart,
+#hourlyChart {
     max-height: 100%;
 }
 

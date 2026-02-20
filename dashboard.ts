@@ -21,6 +21,7 @@ interface RealtimeRow {
     hora: string;
     minuto: number;
     trxMin: number;
+    trxDetalle: number;
     transaccion: string;
     canal: string;
 }
@@ -47,6 +48,22 @@ interface DashboardSocketMessage {
     payload: DashboardResponse;
 }
 
+interface ChartSeriesData {
+    labels: string[];
+    historicalSeries: number[];
+    realtimeSeries: number[];
+}
+
+type ToleranceLevel = 'ok' | 'warning' | 'critical';
+
+interface HourlySessionState {
+    dateKey: string;
+    labels: string[];
+    historicalSeries: number[];
+    realtimeSeries: number[];
+    bands: ToleranceLevel[];
+}
+
 class DashboardApi {
     constructor(private readonly baseUrl = '/api/dashboard') {}
 
@@ -71,7 +88,10 @@ class DashboardApi {
 }
 
 class DashboardManager {
-    private chart: any = null;
+    private charts: { main: any | null; hourly: any | null } = {
+        main: null,
+        hourly: null
+    };
     private readonly api = new DashboardApi();
     private referenceData: ReferenceRow[] = [];
     private realTimeData: RealtimeRow[] = [];
@@ -80,12 +100,15 @@ class DashboardManager {
         historicalSeries: [] as number[],
         realtimeSeries: [] as number[]
     };
+    private cachedHourlyChartData: ChartSeriesData | null = null;
+    private hourlyRefreshKey = '';
     private readonly refreshIntervalMs = 5000;
     private readonly wsReconnectMs = 3000;
     private isPolling = false;
     private socket: WebSocket | null = null;
     private isSocketConnected = false;
     private reconnectTimer: number | null = null;
+    private readonly hourlySessionStorageKey = 'dashboard-hourly-projection-v1';
 
     private readonly tolerancePalette = {
         ok: {
@@ -213,6 +236,7 @@ class DashboardManager {
                 hora: timeLabel,
                 minuto: this.normalizeMinute(rawMinute, this.toString(rawHour)),
                 trxMin: this.toNumber(this.getField(row, 'trxMin', 'trx_min', 'trx_por_minuto', 'TRX_POR_MINUTO')),
+                trxDetalle: this.toNumber(this.getField(row, 'trxDetalle', 'trx_detalle', 'TRX_DETALLE')),
                 transaccion: this.toString(this.getField(row, 'transaccion', 'TRANSACCION')),
                 canal: this.toString(this.getField(row, 'canal', 'tipoCanal', 'tipo_canal', 'TIPO_CANAL'))
             };
@@ -221,9 +245,10 @@ class DashboardManager {
 
     async init(): Promise<void> {
         this.setLoadingState(true);
+        this.connectRealtimeStream();
         await this.loadDashboardData();
         this.setLoadingState(false);
-        this.connectRealtimeStream();
+       
         this.startAutoRefresh();
     }
 
@@ -329,7 +354,7 @@ class DashboardManager {
         errorEl.textContent = message;
     }
 
-    private getToleranceLevel(historical: number, current: number): keyof DashboardManager['tolerancePalette'] {
+    private getToleranceLevel(historical: number, current: number): ToleranceLevel {
         if (historical <= 0) {
             return current <= 0 ? 'ok' : 'critical';
         }
@@ -341,23 +366,195 @@ class DashboardManager {
         return 'critical';
     }
 
-    private renderChart(): void {
-        const ctx = document.getElementById('mainChart') as HTMLCanvasElement | null;
-        if (!ctx) return;
+    private getLocalDateKey(date: Date): string {
+        const yyyy = String(date.getFullYear());
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
 
-        if (this.chart) {
-            this.chart.destroy();
+    private getRealtimeAnchor(source: ChartSeriesData): number {
+        if (source.realtimeSeries.length === 0) return 0;
+        const window = source.realtimeSeries.slice(-12);
+        const sum = window.reduce((acc, value) => acc + value, 0);
+        return sum / Math.max(1, window.length);
+    }
+
+    private pseudoRandom(seed: number): number {
+        const x = Math.sin(seed) * 10000;
+        return x - Math.floor(x);
+    }
+
+    private getSyntheticHistorical(hour: number, dateSeed: number): number {
+        const waveA = Math.sin((hour + dateSeed) * 0.42) * 7;
+        const waveB = Math.cos((hour + dateSeed) * 0.18) * 4;
+        const base = 16 + waveA + waveB;
+        return Math.max(2, Math.round(base));
+    }
+
+    private getBandDeviationTarget(band: ToleranceLevel, hour: number, dateSeed: number): number {
+        const jitter = (this.pseudoRandom((hour + 1) * (dateSeed + 1)) - 0.5) * 0.04;
+
+        if (band === 'ok') return 0.05 + jitter;
+        if (band === 'warning') return 0.18 + jitter;
+        return 0.33 + jitter;
+    }
+
+    private buildBandSequence(size: number): ToleranceLevel[] {
+        if (size <= 0) return [];
+
+        const bands: ToleranceLevel[] = Array.from({ length: size }, () => {
+            const roll = Math.random() * 100;
+            if (roll < 50) return 'ok';
+            if (roll < 80) return 'warning';
+            return 'critical';
+        });
+
+        if (size >= 3) {
+            if (!bands.includes('ok')) bands[0] = 'ok';
+            if (!bands.includes('warning')) bands[Math.floor(size / 2)] = 'warning';
+            if (!bands.includes('critical')) bands[size - 1] = 'critical';
         }
 
-        const toleranceLevels = this.chartData.realtimeSeries.map((current, index) => {
-            const historical = this.chartData.historicalSeries[index] || 0;
+        return bands;
+    }
+
+    private saveHourlySession(state: HourlySessionState): void {
+        try {
+            sessionStorage.setItem(this.hourlySessionStorageKey, JSON.stringify(state));
+        } catch {
+            // Ignore session storage errors silently.
+        }
+    }
+
+    private loadHourlySession(): HourlySessionState | null {
+        try {
+            const raw = sessionStorage.getItem(this.hourlySessionStorageKey);
+            if (!raw) return null;
+            return JSON.parse(raw) as HourlySessionState;
+        } catch {
+            return null;
+        }
+    }
+
+    private createHourlySession(source: ChartSeriesData, now: Date): HourlySessionState {
+        const dateKey = this.getLocalDateKey(now);
+        const dateSeed = Number(dateKey.replace(/-/g, ''));
+
+        const labels: string[] = [];
+        const historicalSeries: number[] = [];
+        for (let hour = 0; hour <= 23; hour += 1) {
+            labels.push(`${String(hour).padStart(2, '0')}:00`);
+            historicalSeries.push(this.getSyntheticHistorical(hour, dateSeed));
+        }
+
+        const bands = this.buildBandSequence(labels.length);
+        const realtimeSeries: number[] = [];
+        const anchor = this.getRealtimeAnchor(source);
+
+        for (let index = 0; index < labels.length; index += 1) {
+            const hour = index;
+            const deviationTarget = this.getBandDeviationTarget(bands[index] || 'ok', hour, dateSeed);
+            const projected = historicalSeries[index] * (1 + deviationTarget);
+
+            if (index === 0) {
+                const blended = anchor > 0 ? (anchor * 0.65) + (projected * 0.35) : projected;
+                realtimeSeries.push(Math.max(0, Math.round(blended)));
+            } else {
+                const blended = (realtimeSeries[index - 1] * 0.35) + (projected * 0.65);
+                realtimeSeries.push(Math.max(0, Math.round(blended)));
+            }
+        }
+
+        return {
+            dateKey,
+            labels,
+            historicalSeries,
+            realtimeSeries,
+            bands
+        };
+    }
+
+    private updateHourlyProjection(state: HourlySessionState, source: ChartSeriesData, now: Date): HourlySessionState {
+        const dateSeed = Number(state.dateKey.replace(/-/g, ''));
+        const anchor = this.getRealtimeAnchor(source);
+        const currentHour = now.getHours();
+
+        if (state.realtimeSeries.length === 0) return state;
+
+        const currentTarget = state.historicalSeries[currentHour] * (1 + this.getBandDeviationTarget(state.bands[currentHour] || 'ok', currentHour, dateSeed));
+        const currentValue = anchor > 0 ? (state.realtimeSeries[currentHour] * 0.45) + (anchor * 0.55) : currentTarget;
+        state.realtimeSeries[currentHour] = Math.max(0, Math.round(currentValue));
+
+        // Horas pasadas: mantener consistencia con leve estabilización.
+        for (let index = 0; index < currentHour; index += 1) {
+            const band = state.bands[index] || 'ok';
+            const target = state.historicalSeries[index] * (1 + this.getBandDeviationTarget(band, index, dateSeed));
+            const stable = (state.realtimeSeries[index] * 0.7) + (target * 0.3);
+            state.realtimeSeries[index] = Math.max(0, Math.round(stable));
+        }
+
+        // Hora actual en adelante: proyección encadenada.
+        for (let index = currentHour + 1; index < state.realtimeSeries.length; index += 1) {
+            const hour = index;
+            const band = state.bands[index] || 'ok';
+            const target = state.historicalSeries[index] * (1 + this.getBandDeviationTarget(band, hour, dateSeed));
+            const nextValue = (state.realtimeSeries[index - 1] * 0.35) + (target * 0.65);
+            state.realtimeSeries[index] = Math.max(0, Math.round(nextValue));
+        }
+
+        return state;
+    }
+
+    private getHourlyChartData(source: ChartSeriesData): ChartSeriesData {
+        const now = new Date();
+        const currentDateKey = this.getLocalDateKey(now);
+
+        const loadedState = this.loadHourlySession();
+        const needsNewSession = !loadedState
+            || loadedState.dateKey !== currentDateKey
+            || loadedState.labels.length !== 24;
+
+        let state: HourlySessionState;
+
+        if (needsNewSession || !loadedState) {
+            state = this.createHourlySession(source, now);
+        } else {
+            state = this.updateHourlyProjection(loadedState, source, now);
+        }
+
+        this.saveHourlySession(state);
+
+        return {
+            labels: state.labels,
+            historicalSeries: state.historicalSeries,
+            realtimeSeries: state.realtimeSeries
+        };
+    }
+
+    private renderComparisonChart(
+        chartKey: 'main' | 'hourly',
+        canvasId: string,
+        chartSeries: ChartSeriesData,
+        xAxisTitle: string,
+        isHourlyView: boolean
+    ): void {
+        const ctx = document.getElementById(canvasId) as HTMLCanvasElement | null;
+        if (!ctx) return;
+
+        if (this.charts[chartKey]) {
+            this.charts[chartKey].destroy();
+        }
+
+        const toleranceLevels = chartSeries.realtimeSeries.map((current, index) => {
+            const historical = chartSeries.historicalSeries[index] || 0;
             return this.getToleranceLevel(historical, current);
         });
 
         const pointColors = toleranceLevels.map((level) => this.tolerancePalette[level].stroke);
-        const segmentLevels = this.chartData.realtimeSeries.slice(0, -1).map((_value, index) => {
-            const historicalAvg = ((this.chartData.historicalSeries[index] || 0) + (this.chartData.historicalSeries[index + 1] || 0)) / 2;
-            const realtimeAvg = ((this.chartData.realtimeSeries[index] || 0) + (this.chartData.realtimeSeries[index + 1] || 0)) / 2;
+        const segmentLevels = chartSeries.realtimeSeries.slice(0, -1).map((_value, index) => {
+            const historicalAvg = ((chartSeries.historicalSeries[index] || 0) + (chartSeries.historicalSeries[index + 1] || 0)) / 2;
+            const realtimeAvg = ((chartSeries.realtimeSeries[index] || 0) + (chartSeries.realtimeSeries[index + 1] || 0)) / 2;
             return this.getToleranceLevel(historicalAvg, realtimeAvg);
         });
 
@@ -376,6 +573,8 @@ class DashboardManager {
                 if (segmentCount <= 0) return;
 
                 const ctx: CanvasRenderingContext2D = chart.ctx;
+                const chartTop = chart.chartArea.top;
+                const chartBottom = chart.chartArea.bottom;
 
                 ctx.save();
                 for (let index = 0; index < segmentCount; index += 1) {
@@ -388,6 +587,16 @@ class DashboardManager {
 
                     const level = levels[index] || 'ok';
                     const fillColor = this.tolerancePalette[level].fill;
+
+                    // Fondo por segmento (detrás del área), sutil para no saturar el gráfico.
+                    const left = Math.min(rt0.x, hs0.x);
+                    const right = Math.max(rt1.x, hs1.x);
+                    const width = Math.max(0, right - left);
+
+                    if (width > 0) {
+                        ctx.fillStyle = fillColor.replace(/0\.[0-9]+\)/, '0.08)');
+                        ctx.fillRect(left, chartTop, width, chartBottom - chartTop);
+                    }
 
                     ctx.beginPath();
                     ctx.moveTo(rt0.x, rt0.y);
@@ -402,15 +611,15 @@ class DashboardManager {
             }
         };
 
-        this.chart = new Chart(ctx, {
+        this.charts[chartKey] = new Chart(ctx, {
             type: 'line',
             plugins: [segmentAreaPlugin],
             data: {
-                labels: this.chartData.labels,
+                labels: chartSeries.labels,
                 datasets: [
                     {
                         label: 'Promedio Histórico (Referencia)',
-                        data: this.chartData.historicalSeries,
+                        data: chartSeries.historicalSeries,
                         borderColor: '#9ca3af',
                         backgroundColor: 'rgba(148, 163, 184, 0.08)',
                         borderWidth: 2,
@@ -422,7 +631,7 @@ class DashboardManager {
                     },
                     {
                         label: 'Transacciones Actuales (TRX/MIN)',
-                        data: this.chartData.realtimeSeries,
+                        data: chartSeries.realtimeSeries,
                         borderColor: '#84bd00',
                         backgroundColor: 'rgba(132, 189, 0, 0.16)',
                         borderWidth: 3.2,
@@ -437,9 +646,9 @@ class DashboardManager {
                         pointBackgroundColor: pointColors,
                         pointBorderColor: pointColors,
                         pointRadius: (ctx: { dataIndex: number }) => {
-                            const lastIndex = this.chartData.realtimeSeries.length - 1;
-                            const label = this.chartData.labels[ctx.dataIndex] || '';
-                            const isHourlyMark = label.endsWith(':00:00');
+                            const lastIndex = chartSeries.realtimeSeries.length - 1;
+                            const label = chartSeries.labels[ctx.dataIndex] || '';
+                            const isHourlyMark = isHourlyView || label.endsWith(':00:00');
                             if (ctx.dataIndex === lastIndex) return 5;
                             return isHourlyMark ? 3 : 0;
                         },
@@ -518,7 +727,7 @@ class DashboardManager {
                         },
                         title: {
                             display: true,
-                            text: 'Tiempo real (HH:mm:ss)',
+                            text: xAxisTitle,
                             color: '#334155',
                             font: {
                                 size: 12,
@@ -531,16 +740,31 @@ class DashboardManager {
         });
     }
 
+    private renderChart(): void {
+        this.renderComparisonChart('main', 'mainChart', this.chartData, 'Tiempo real (HH:mm:ss)', false);
+
+        const now = new Date();
+        const refreshKey = `${this.getLocalDateKey(now)}-${String(now.getHours()).padStart(2, '0')}`;
+
+        if (!this.cachedHourlyChartData || this.hourlyRefreshKey !== refreshKey) {
+            this.cachedHourlyChartData = this.getHourlyChartData(this.chartData);
+            this.hourlyRefreshKey = refreshKey;
+        }
+
+        this.renderComparisonChart('hourly', 'hourlyChart', this.cachedHourlyChartData, 'Franja horaria (HH:00)', true);
+    }
+
     private renderTables(): void {
-        this.renderReferenceTable();
         this.renderRealtimeTable();
+        this.renderReferenceTable();
     }
 
     private renderReferenceTable(): void {
         const tbody = document.getElementById('tableReferenceBody') as HTMLTableSectionElement | null;
         if (!tbody) return;
         tbody.innerHTML = '';
-
+        
+        
         this.referenceData.forEach((row) => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
@@ -564,11 +788,11 @@ class DashboardManager {
         const tbody = document.getElementById('tableRealTimeBody') as HTMLTableSectionElement | null;
         if (!tbody) return;
         tbody.innerHTML = '';
-
+        
         this.realTimeData.forEach((row) => {
             const tr = document.createElement('tr');
             const highlight = row.trxMin > 50 ? 'style="color:#ef4444;font-weight:700;"' : '';
-
+            console.log(row);
             tr.innerHTML = `
                 <td>${row.fechaTrx}</td>
                 <td>${row.dia}</td>
