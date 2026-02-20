@@ -1,24 +1,26 @@
 export interface ReferenceRow {
     estado: string;
     fecha: string;
-    tipoDia: string;
     dia: number;
     mes: number;
     anio: number;
+    hora: number;
+    minuto: number;
+    tipoDia: string;
     transaccion: string;
-    canal: string;
-    hora: string;
-    promedio: number;
+    tipoCanal: string;
+    promTrxXMinuto: number;
 }
 
 export interface RealtimeRow {
-    fecha: string;
+    fechaTrx: string;
     dia: number;
     mes: number;
-    hora: string;
-    trxMin: number;
+    hora: number;
+    minuto: number;
+    trxPorMinuto: number;
     transaccion: string;
-    canal: string;
+    tipoCanal: string;
 }
 
 export interface DashboardPayload {
@@ -37,66 +39,215 @@ export interface DashboardPayload {
     };
 }
 
-const referenceData: ReferenceRow[] = [
-    { estado: 'DIA NORMAL', fecha: '2025-10-01', tipoDia: 'DIA NORMAL', dia: 1, mes: 10, anio: 2025, transaccion: 'RETIRO', canal: 'ATM PRODUBANCO', hora: '00:00', promedio: 1 },
-    { estado: 'DIA NORMAL', fecha: '2025-10-01', tipoDia: 'DIA NORMAL', dia: 1, mes: 10, anio: 2025, transaccion: 'RETIRO', canal: 'ATM PRODUBANCO', hora: '00:00', promedio: 3 },
-    { estado: 'DIA NORMAL', fecha: '2025-10-01', tipoDia: 'DIA NORMAL', dia: 1, mes: 10, anio: 2025, transaccion: 'RETIRO', canal: 'ATM PRODUBANCO', hora: '00:01', promedio: 2 },
-    { estado: 'DIA NORMAL', fecha: '2025-10-01', tipoDia: 'DIA NORMAL', dia: 1, mes: 10, anio: 2025, transaccion: 'RETIRO', canal: 'CLIENTES PRODUBANCO ATM RED', hora: '00:01', promedio: 1 },
-    { estado: 'DIA NORMAL', fecha: '2025-10-01', tipoDia: 'DIA NORMAL', dia: 1, mes: 10, anio: 2025, transaccion: 'RETIRO', canal: 'CLIENTES PRODUBANCO ATM RED', hora: '00:02', promedio: 1 },
-    { estado: 'DIA NORMAL', fecha: '2025-10-01', tipoDia: 'DIA NORMAL', dia: 1, mes: 10, anio: 2025, transaccion: 'RETIRO', canal: 'CLIENTES PRODUBANCO ATM RED', hora: '00:03', promedio: 1 },
-    { estado: 'DIA NORMAL', fecha: '2025-10-01', tipoDia: 'DIA NORMAL', dia: 1, mes: 10, anio: 2025, transaccion: 'PAGO TC', canal: 'ATM PRODUBANCO', hora: '00:03', promedio: 1 },
-    { estado: 'DIA NORMAL', fecha: '2025-10-01', tipoDia: 'DIA NORMAL', dia: 1, mes: 10, anio: 2025, transaccion: 'RETIRO', canal: 'ATM PRODUBANCO', hora: '00:04', promedio: 5 },
-    { estado: 'DIA NORMAL', fecha: '2025-10-01', tipoDia: 'DIA NORMAL', dia: 1, mes: 10, anio: 2025, transaccion: 'RETIRO', canal: 'CLIENTES PRODUBANCO ATM RED', hora: '00:04', promedio: 2 },
-    { estado: 'DIA NORMAL', fecha: '2025-10-01', tipoDia: 'DIA NORMAL', dia: 1, mes: 10, anio: 2025, transaccion: 'RETIRO', canal: 'ATM PRODUBANCO', hora: '00:04', promedio: 1 },
-    { estado: 'DIA NORMAL', fecha: '2025-10-01', tipoDia: 'DIA NORMAL', dia: 1, mes: 10, anio: 2025, transaccion: 'RETIRO', canal: 'ATM PRODUBANCO', hora: '00:05', promedio: 2 },
-    { estado: 'DIA NORMAL', fecha: '2025-10-01', tipoDia: 'DIA NORMAL', dia: 1, mes: 10, anio: 2025, transaccion: 'RETIRO', canal: 'ATM PRODUBANCO', hora: '00:06', promedio: 5 }
-];
+type ToleranceBand = 'ok' | 'warning' | 'critical';
 
-const realTimeData: RealtimeRow[] = [
-    { fecha: '12-02-2026 08:54', dia: 12, mes: 2, hora: '08:54', trxMin: 2, transaccion: 'DEPOSITO', canal: 'ATM PRODUBANCO' },
-    { fecha: '12-02-2026 08:54', dia: 12, mes: 2, hora: '08:54', trxMin: 35, transaccion: 'RETIRO', canal: 'ATM PRODUBANCO' },
-    { fecha: '12-02-2026 08:54', dia: 12, mes: 2, hora: '08:54', trxMin: 12, transaccion: 'RETIRO', canal: 'CLIENTES PRODUBANCO ATM RED' },
-    { fecha: '10-02-2026 16:41', dia: 10, mes: 2, hora: '16:41', trxMin: 1, transaccion: 'AVANCE', canal: 'ATM PRODUBANCO' },
-    { fecha: '10-02-2026 16:41', dia: 10, mes: 2, hora: '16:41', trxMin: 7, transaccion: 'DEPOSITO', canal: 'ATM PRODUBANCO' },
-    { fecha: '10-02-2026 16:41', dia: 10, mes: 2, hora: '16:41', trxMin: 71, transaccion: 'RETIRO', canal: 'ATM PRODUBANCO' },
-    { fecha: '10-02-2026 16:41', dia: 10, mes: 2, hora: '16:41', trxMin: 2, transaccion: 'RETIRO', canal: 'ATM SERVIPAGOS' },
-    { fecha: '10-02-2026 16:41', dia: 10, mes: 2, hora: '16:41', trxMin: 16, transaccion: 'RETIRO', canal: 'CLIENTES PRODUBANCO ATM RED' },
-    { fecha: '09-02-2026 17:16', dia: 9, mes: 2, hora: '17:16', trxMin: 1, transaccion: 'AVANCE', canal: 'ATM PRODUBANCO' },
-    { fecha: '09-02-2026 17:16', dia: 9, mes: 2, hora: '17:16', trxMin: 6, transaccion: 'DEPOSITO', canal: 'ATM PRODUBANCO' },
-    { fecha: '09-02-2026 17:16', dia: 9, mes: 2, hora: '17:16', trxMin: 1, transaccion: 'PAGO TC', canal: 'ATM PRODUBANCO' },
-    { fecha: '09-02-2026 17:16', dia: 9, mes: 2, hora: '17:16', trxMin: 94, transaccion: 'RETIRO', canal: 'ATM PRODUBANCO' }
-];
+const transactionCatalog = ['RETIRO', 'DEPOSITO', 'PAGO TC', 'AVANCE'];
+const channelCatalog = ['ATM PRINCIPAL', 'CLIENTES ATM RED', 'ATM TERCERIZADO'];
 
-function aggregateByTime<T extends { hora: string }>(data: T[], valueSelector: (item: T) => number): Record<string, number> {
-    const byTime: Record<string, number> = {};
+const bandRanges: Record<ToleranceBand, { min: number; max: number }> = {
+    ok: { min: -0.25, max: 0.10 },
+    warning: { min: 0.11, max: 0.25 },
+    critical: { min: 0.26, max: 0.55 }
+};
 
-    for (const item of data) {
-        const time = item.hora;
-        byTime[time] = (byTime[time] || 0) + valueSelector(item);
+type LivePoint = {
+    timestamp: Date;
+    historical: number;
+    realtime: number;
+    transaccion: string;
+    tipoCanal: string;
+};
+
+const WINDOW_SIZE = 90;
+
+const liveState: {
+    points: LivePoint[];
+    step: number;
+    lastTickAt: number;
+    activeBand: ToleranceBand;
+    bandTicksLeft: number;
+    previousRealtime: number;
+} = {
+    points: [],
+    step: 0,
+    lastTickAt: 0,
+    activeBand: 'ok',
+    bandTicksLeft: 0,
+    previousRealtime: 0
+};
+
+function randomInt(min: number, max: number): number {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomFloat(min: number, max: number): number {
+    return Math.random() * (max - min) + min;
+}
+
+function pickRandom<T>(items: T[]): T {
+    return items[randomInt(0, items.length - 1)];
+}
+
+function pickWeightedBand(): ToleranceBand {
+    const roll = Math.random() * 100;
+    if (roll < 62) return 'ok';
+    if (roll < 88) return 'warning';
+    return 'critical';
+}
+
+function toDateLabel(now: Date): string {
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = String(now.getFullYear());
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    return `${dd}-${mm}-${yyyy} ${hh}:${min}`;
+}
+
+function toTimeLabel(now: Date): string {
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+}
+
+function computeHistorical(step: number): number {
+    const base = 18;
+    const waveFast = Math.sin(step / 5) * 6;
+    const waveSlow = Math.sin(step / 19) * 4;
+    const trend = Math.cos(step / 45) * 2;
+    return Math.max(2, Math.round(base + waveFast + waveSlow + trend));
+}
+
+function nextBandDuration(band: ToleranceBand): number {
+    if (band === 'ok') return randomInt(8, 20);
+    if (band === 'warning') return randomInt(6, 14);
+    return randomInt(4, 10);
+}
+
+function ensureBandCycle(): void {
+    if (liveState.bandTicksLeft > 0) {
+        liveState.bandTicksLeft -= 1;
+        return;
     }
 
-    return byTime;
+    liveState.activeBand = pickWeightedBand();
+    liveState.bandTicksLeft = nextBandDuration(liveState.activeBand);
+}
+
+function buildRealtimeFromHistorical(historical: number): number {
+    ensureBandCycle();
+
+    const range = bandRanges[liveState.activeBand];
+    const deviation = randomFloat(range.min, range.max);
+    const noise = randomFloat(-0.03, 0.03);
+    const target = Math.max(0, historical * (1 + deviation + noise));
+    const smoothed = liveState.previousRealtime === 0
+        ? target
+        : (liveState.previousRealtime * 0.42) + (target * 0.58);
+
+    const value = Math.max(0, Math.round(smoothed));
+    liveState.previousRealtime = value;
+    return value;
+}
+
+function pushTick(timestamp: Date): void {
+    const historical = computeHistorical(liveState.step);
+    const realtime = buildRealtimeFromHistorical(historical);
+
+    liveState.points.push({
+        timestamp,
+        historical,
+        realtime,
+        transaccion: pickRandom(transactionCatalog),
+        tipoCanal: pickRandom(channelCatalog)
+    });
+
+    while (liveState.points.length > WINDOW_SIZE) {
+        liveState.points.shift();
+    }
+
+    liveState.step += 1;
+}
+
+function hydrateIfNeeded(now: Date): void {
+    if (liveState.points.length > 0) return;
+
+    const start = new Date(now.getTime() - ((WINDOW_SIZE - 1) * 1000));
+    for (let index = 0; index < WINDOW_SIZE; index += 1) {
+        const tickDate = new Date(start.getTime() + (index * 1000));
+        pushTick(tickDate);
+    }
+
+    liveState.lastTickAt = now.getTime();
+}
+
+function updateLiveState(): void {
+    const now = new Date();
+    hydrateIfNeeded(now);
+
+    const elapsedSeconds = Math.max(1, Math.floor((now.getTime() - liveState.lastTickAt) / 1000));
+
+    for (let step = 0; step < elapsedSeconds; step += 1) {
+        const tickDate = new Date(liveState.lastTickAt + ((step + 1) * 1000));
+        pushTick(tickDate);
+    }
+
+    liveState.lastTickAt = now.getTime();
+}
+
+function buildReferenceRows(points: LivePoint[]): ReferenceRow[] {
+    return points.map((point) => ({
+        estado: 'DIA NORMAL',
+        fecha: point.timestamp.toISOString().slice(0, 10),
+        dia: point.timestamp.getDate(),
+        mes: point.timestamp.getMonth() + 1,
+        anio: point.timestamp.getFullYear(),
+        hora: point.timestamp.getHours(),
+        minuto: point.timestamp.getMinutes(),
+        tipoDia: 'DIA NORMAL',
+        transaccion: 'RETIRO',
+        tipoCanal: 'ATM PRINCIPAL',
+        promTrxXMinuto: point.historical
+    }));
+}
+
+function buildRealtimeRows(points: LivePoint[]): RealtimeRow[] {
+    return points.map((point) => ({
+        fechaTrx: toDateLabel(point.timestamp),
+        dia: point.timestamp.getDate(),
+        mes: point.timestamp.getMonth() + 1,
+        hora: point.timestamp.getHours(),
+        minuto: point.timestamp.getMinutes(),
+        trxPorMinuto: point.realtime,
+        transaccion: point.transaccion,
+        tipoCanal: point.tipoCanal
+    }));
 }
 
 export function getDashboardData(): DashboardPayload {
-    const historicalByTime = aggregateByTime(referenceData, (item) => item.promedio);
-    const realTimeByTime = aggregateByTime(realTimeData, (item) => item.trxMin);
+    updateLiveState();
 
-    const labels = Array.from(new Set([...Object.keys(historicalByTime), ...Object.keys(realTimeByTime)])).sort();
+    const points = [...liveState.points];
+    const labels = points.map((point) => toTimeLabel(point.timestamp));
+    const historicalSeries = points.map((point) => point.historical);
+    const realtimeSeries = points.map((point) => point.realtime);
+    const referenceRows = buildReferenceRows(points).slice(-30);
+    const realtimeRows = buildRealtimeRows(points).slice(-30);
 
     return {
         chart: {
             labels,
-            historicalSeries: labels.map((time) => historicalByTime[time] || 0),
-            realtimeSeries: labels.map((time) => realTimeByTime[time] || 0)
+            historicalSeries,
+            realtimeSeries
         },
         tables: {
-            reference: referenceData,
-            realtime: realTimeData
+            reference: referenceRows,
+            realtime: realtimeRows
         },
         meta: {
             generatedAt: new Date().toISOString(),
-            source: 'mock-repository'
+            source: 'mock-repository-live-monitor'
         }
     };
 }
