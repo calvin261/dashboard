@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -9,108 +9,531 @@
 </head>
 <body>
     <div class="dashboard-container">
+
         <!-- Header -->
         <header class="dashboard-header">
             <div class="header-content">
                 <h1>Dashboard Eventos ATM</h1>
                 <div class="header-info">
-                    <span id="lastUpdate">Última actualización: --:--:--</span>
-                    <span class="status-indicator">●</span>
+                    <span id="lastUpdate">Ultima actualizacion: --:--:--</span>
+                    <span class="status-indicator">&#9679;</span>
                 </div>
             </div>
         </header>
 
-        <!-- Main Content -->
         <main class="dashboard-main">
-            <!-- Chart Section - Priority -->
-            <section class="chart-section">
-                <div class="card chart-card">
-                    <div class="card-header">
-                        <h2>Comparativa: Promedio Histórico vs. Tiempo Real</h2>
-                        <span class="update-badge">Análisis de Tendencia</span>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="mainChart"></canvas>
-                    </div>
-                </div>
-            </section>
 
-            <section class="chart-section">
-                <div class="card chart-card">
-                    <div class="card-header">
-                        <h2>Comparativa por Hora: Histórico vs. Actual</h2>
-                        <span class="update-badge">Vista Horaria</span>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="hourlyChart"></canvas>
-                    </div>
-                </div>
-            </section>
+            <!-- Charts: 8 graficos agrupados por canal -->
+            <section class="charts-section">
 
-            <!-- Tables Section -->
+                <!-- ATM: 5 transacciones -->
+                <div class="canal-section">
+                    <h2 class="canal-title">ATM</h2>
+                    <div class="charts-grid">
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>AVANCE</h3>
+                                <span id="badge_atm_avance" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body">
+                                <canvas id="chart_atm_avance"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>DEPOSITO</h3>
+                                <span id="badge_atm_deposito" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body">
+                                <canvas id="chart_atm_deposito"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>PAGO TC</h3>
+                                <span id="badge_atm_pago_tc" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body">
+                                <canvas id="chart_atm_pago_tc"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>RETIRO</h3>
+                                <span id="badge_atm_retiro" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body">
+                                <canvas id="chart_atm_retiro"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>TRANSFERENCIAS</h3>
+                                <span id="badge_atm_transferencias" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body">
+                                <canvas id="chart_atm_transferencias"></canvas>
+                            </div>
+                        </div>
+
+                    </div><!-- /charts-grid atm -->
+                </div><!-- /canal-section atm -->
+
+                <!-- ATM SERVIPAGOS: 2 transacciones -->
+                <div class="canal-section">
+                    <h2 class="canal-title">ATM SERVIPAGOS</h2>
+                    <div class="charts-grid">
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>AVANCE</h3>
+                                <span id="badge_servipagos_avance" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body">
+                                <canvas id="chart_servipagos_avance"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>RETIRO</h3>
+                                <span id="badge_servipagos_retiro" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body">
+                                <canvas id="chart_servipagos_retiro"></canvas>
+                            </div>
+                        </div>
+
+                    </div><!-- /charts-grid servipagos -->
+                </div><!-- /canal-section servipagos -->
+
+                <!-- CLIENTES ATM RED: 1 transaccion -->
+                <div class="canal-section">
+                    <h2 class="canal-title">CLIENTES ATM RED</h2>
+                    <div class="charts-grid">
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>RETIRO</h3>
+                                <span id="badge_clientes_red_retiro" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body">
+                                <canvas id="chart_clientes_red_retiro"></canvas>
+                            </div>
+                        </div>
+
+                    </div><!-- /charts-grid clientes red -->
+                </div><!-- /canal-section clientes red -->
+
+            </section><!-- /charts-section -->
+
+
+            <!-- Graficos Por Hora -->
+            <section class="charts-section hourly-section">
+                <h2 class="section-title">Transacciones por Hora</h2>
+
+                <!-- ATM -->
+                <div class="canal-section">
+                    <h2 class="canal-title">ATM</h2>
+                    <div class="charts-grid">
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>AVANCE</h3>
+                                <span id="hbadge_atm_avance" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body"><canvas id="hchart_atm_avance"></canvas></div>
+                        </div>
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>DEPOSITO</h3>
+                                <span id="hbadge_atm_deposito" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body"><canvas id="hchart_atm_deposito"></canvas></div>
+                        </div>
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>PAGO TC</h3>
+                                <span id="hbadge_atm_pago_tc" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body"><canvas id="hchart_atm_pago_tc"></canvas></div>
+                        </div>
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>RETIRO</h3>
+                                <span id="hbadge_atm_retiro" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body"><canvas id="hchart_atm_retiro"></canvas></div>
+                        </div>
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>TRANSFERENCIAS</h3>
+                                <span id="hbadge_atm_transferencias" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body"><canvas id="hchart_atm_transferencias"></canvas></div>
+                        </div>
+
+                    </div><!-- /charts-grid hourly atm -->
+                </div><!-- /canal-section hourly atm -->
+
+                <!-- ATM SERVIPAGOS -->
+                <div class="canal-section">
+                    <h2 class="canal-title">ATM SERVIPAGOS</h2>
+                    <div class="charts-grid">
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>AVANCE</h3>
+                                <span id="hbadge_servipagos_avance" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body"><canvas id="hchart_servipagos_avance"></canvas></div>
+                        </div>
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>RETIRO</h3>
+                                <span id="hbadge_servipagos_retiro" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body"><canvas id="hchart_servipagos_retiro"></canvas></div>
+                        </div>
+
+                    </div><!-- /charts-grid hourly servipagos -->
+                </div><!-- /canal-section hourly servipagos -->
+
+                <!-- CLIENTES ATM RED -->
+                <div class="canal-section">
+                    <h2 class="canal-title">CLIENTES ATM RED</h2>
+                    <div class="charts-grid">
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>RETIRO</h3>
+                                <span id="hbadge_clientes_red_retiro" class="status-badge badge-ok">OK</span>
+                            </div>
+                            <div class="card-body chart-body"><canvas id="hchart_clientes_red_retiro"></canvas></div>
+                        </div>
+
+                    </div><!-- /charts-grid hourly clientes red -->
+                </div><!-- /canal-section hourly clientes red -->
+
+            </section><!-- /hourly-section -->
+            <!-- Tablas Tiempo Real -->
             <section class="tables-section">
-                <!-- Table 1: Actual / Transacciones -->
-                <div class="card table-card full-width">
-                    <div class="card-header">
-                        <h3>Transacciones en Tiempo Real</h3>
-                        <span class="metric-badge metric-produccion">En Vivo</span>
-                    </div>
-                    <div class="card-body">
-                        <table class="data-table" id="tableRealTime">
-                            <thead>
-                                <tr>
-                                    <th>Fecha Trx</th>
-                                    <th>Dia</th>
-                                    <th>Mes</th>
-                                    <th>Hora</th>
-                                    <th>Minuto</th>
-                                    <th>Trx Por Minuto</th>
-                                    <th>Transaccion</th>
-                                    <th>Tipo Canal</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tableRealTimeBody">
-                                <!-- Data populated by JavaScript -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                <h2 class="section-title">Tiempo Real</h2>
+                <div class="tables-grid">
 
-                <!-- Table 2: Histórico / Referencia -->
-                <div class="card table-card full-width">
-                    <div class="card-header">
-                        <h3>Datos de Referencia (Histórico)</h3>
-                        <span class="metric-badge metric-ventas">Referencia</span>
+                    <!-- ATM - Avance -->
+                    <div class="card table-card">
+                        <div class="card-header">
+                            <h3>ATM &#8212; AVANCE</h3>
+                            <span id="rt_badge_atm_avance" class="status-badge badge-ok">OK</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
+                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
+                                </tr></thead>
+                                <tbody id="rt_body_atm_avance"></tbody>
+                            </table>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <table class="data-table" id="tableReference">
-                            <thead>
-                                <tr>
-                                    <th>Estado</th>
-                                    <th>Fecha</th>
-                                    <th>Dia</th>
-                                    <th>Mes</th>
-                                    <th>Año</th>
-                                    <th>Hora</th>
-                                    <th>Minuto</th>
-                                    <th>Tipo Dia</th>
-                                    <th>Transaccion</th>
-                                    <th>Tipo Canal</th>
-                                    <th>Prom Trx X Minuto</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tableReferenceBody">
-                                <!-- Data populated by JavaScript -->
-                            </tbody>
-                        </table>
+
+                    <!-- ATM - Deposito -->
+                    <div class="card table-card">
+                        <div class="card-header">
+                            <h3>ATM &#8212; DEPOSITO</h3>
+                            <span id="rt_badge_atm_deposito" class="status-badge badge-ok">OK</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
+                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
+                                </tr></thead>
+                                <tbody id="rt_body_atm_deposito"></tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
+
+                    <!-- ATM - Pago TC -->
+                    <div class="card table-card">
+                        <div class="card-header">
+                            <h3>ATM &#8212; PAGO TC</h3>
+                            <span id="rt_badge_atm_pago_tc" class="status-badge badge-ok">OK</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
+                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
+                                </tr></thead>
+                                <tbody id="rt_body_atm_pago_tc"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- ATM - Retiro -->
+                    <div class="card table-card">
+                        <div class="card-header">
+                            <h3>ATM &#8212; RETIRO</h3>
+                            <span id="rt_badge_atm_retiro" class="status-badge badge-ok">OK</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
+                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
+                                </tr></thead>
+                                <tbody id="rt_body_atm_retiro"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- ATM - Transferencias -->
+                    <div class="card table-card">
+                        <div class="card-header">
+                            <h3>ATM &#8212; TRANSFERENCIAS</h3>
+                            <span id="rt_badge_atm_transferencias" class="status-badge badge-ok">OK</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
+                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
+                                </tr></thead>
+                                <tbody id="rt_body_atm_transferencias"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- ATM SERVIPAGOS - Avance -->
+                    <div class="card table-card">
+                        <div class="card-header">
+                            <h3>ATM SERVIPAGOS &#8212; AVANCE</h3>
+                            <span id="rt_badge_servipagos_avance" class="status-badge badge-ok">OK</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
+                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
+                                </tr></thead>
+                                <tbody id="rt_body_servipagos_avance"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- ATM SERVIPAGOS - Retiro -->
+                    <div class="card table-card">
+                        <div class="card-header">
+                            <h3>ATM SERVIPAGOS &#8212; RETIRO</h3>
+                            <span id="rt_badge_servipagos_retiro" class="status-badge badge-ok">OK</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
+                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
+                                </tr></thead>
+                                <tbody id="rt_body_servipagos_retiro"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- CLIENTES ATM RED - Retiro -->
+                    <div class="card table-card">
+                        <div class="card-header">
+                            <h3>CLIENTES ATM RED &#8212; RETIRO</h3>
+                            <span id="rt_badge_clientes_red_retiro" class="status-badge badge-ok">OK</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
+                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
+                                </tr></thead>
+                                <tbody id="rt_body_clientes_red_retiro"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div><!-- /tables-grid RT -->
             </section>
+
+            <!-- Tablas Historico -->
+            <section class="tables-section">
+                <h2 class="section-title">Historico (2025-10-01)</h2>
+                <div class="tables-grid tables-grid--hist">
+
+                    <!-- ATM - Avance -->
+                    <div class="card table-card table-card--hist">
+                        <div class="card-header">
+                            <h3>ATM &#8212; AVANCE (Hist.)</h3>
+                            <span class="metric-badge">Referencia</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
+                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
+                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
+                                    <th>Ratio5</th><th>Target</th>
+                                </tr></thead>
+                                <tbody id="hist_body_atm_avance"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- ATM - Deposito -->
+                    <div class="card table-card table-card--hist">
+                        <div class="card-header">
+                            <h3>ATM &#8212; DEPOSITO (Hist.)</h3>
+                            <span class="metric-badge">Referencia</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
+                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
+                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
+                                    <th>Ratio5</th><th>Target</th>
+                                </tr></thead>
+                                <tbody id="hist_body_atm_deposito"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- ATM - Pago TC -->
+                    <div class="card table-card table-card--hist">
+                        <div class="card-header">
+                            <h3>ATM &#8212; PAGO TC (Hist.)</h3>
+                            <span class="metric-badge">Referencia</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
+                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
+                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
+                                    <th>Ratio5</th><th>Target</th>
+                                </tr></thead>
+                                <tbody id="hist_body_atm_pago_tc"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- ATM - Retiro -->
+                    <div class="card table-card table-card--hist">
+                        <div class="card-header">
+                            <h3>ATM &#8212; RETIRO (Hist.)</h3>
+                            <span class="metric-badge">Referencia</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
+                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
+                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
+                                    <th>Ratio5</th><th>Target</th>
+                                </tr></thead>
+                                <tbody id="hist_body_atm_retiro"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- ATM - Transferencias -->
+                    <div class="card table-card table-card--hist">
+                        <div class="card-header">
+                            <h3>ATM &#8212; TRANSFERENCIAS (Hist.)</h3>
+                            <span class="metric-badge">Referencia</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
+                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
+                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
+                                    <th>Ratio5</th><th>Target</th>
+                                </tr></thead>
+                                <tbody id="hist_body_atm_transferencias"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- SERVIPAGOS - Avance -->
+                    <div class="card table-card table-card--hist">
+                        <div class="card-header">
+                            <h3>ATM SERVIPAGOS &#8212; AVANCE (Hist.)</h3>
+                            <span class="metric-badge">Referencia</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
+                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
+                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
+                                    <th>Ratio5</th><th>Target</th>
+                                </tr></thead>
+                                <tbody id="hist_body_servipagos_avance"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- SERVIPAGOS - Retiro -->
+                    <div class="card table-card table-card--hist">
+                        <div class="card-header">
+                            <h3>ATM SERVIPAGOS &#8212; RETIRO (Hist.)</h3>
+                            <span class="metric-badge">Referencia</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
+                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
+                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
+                                    <th>Ratio5</th><th>Target</th>
+                                </tr></thead>
+                                <tbody id="hist_body_servipagos_retiro"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- CLIENTES RED - Retiro -->
+                    <div class="card table-card table-card--hist">
+                        <div class="card-header">
+                            <h3>CLIENTES ATM RED &#8212; RETIRO (Hist.)</h3>
+                            <span class="metric-badge">Referencia</span>
+                        </div>
+                        <div class="card-body table-body">
+                            <table class="data-table">
+                                <thead><tr>
+                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
+                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
+                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
+                                    <th>Ratio5</th><th>Target</th>
+                                </tr></thead>
+                                <tbody id="hist_body_clientes_red_retiro"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div><!-- /tables-grid Hist -->
+            </section>
+
         </main>
 
-        <!-- Footer -->
         <footer class="dashboard-footer">
-            <p>&copy; 2026 Dashboard Corporativo - Datos actualizados en tiempo real</p>
+            <p>&copy; 2026 Dashboard Corporativo ATM &#8212; Monitoreo en Tiempo Real</p>
         </footer>
     </div>
 

@@ -27,7 +27,8 @@ export default function handler(req: any, res: any): void {
 
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({
-        chart: data.chart,
+        charts: data.charts,
+        hourlyCharts: data.hourlyCharts,
         tables: includeTables ? data.tables : undefined,
         meta: data.meta
     });

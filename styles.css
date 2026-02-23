@@ -9,8 +9,8 @@
     --primary-color: #0f5132;
     --secondary-color: #84bd00;
     --success-color: #84bd00;
-    --warning-color: #ff6347;
-    --danger-color: #dc2626;
+    --warning-color: #c41a00;
+    --danger-color: #6b0000;
     --dark-bg: #eef2f7;
     --card-bg: #ffffff;
     --text-primary: #0f172a;
@@ -104,7 +104,8 @@ body {
     box-shadow: var(--shadow-lg);
     overflow: hidden;
     border: 1px solid var(--border-color);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border-left: 3px solid var(--border-color);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.6s ease, border-left-color 0.6s ease;
 }
 
 .card:hover {
@@ -336,3 +337,211 @@ body {
     overflow: auto;
     max-height: 360px;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   LAYOUT — 8 Charts grouped by canal + 8 RT tables + 8 Hist tables
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Charts section: canal groups stacked */
+.charts-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Hourly section title */
+.hourly-section > .section-title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 3px solid var(--secondary-color);
+    letter-spacing: 0.3px;
+}
+
+/* Canal group container */
+.canal-section {
+    margin-bottom: 0.5rem;
+}
+
+/* Canal group title */
+.canal-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    padding: 0.4rem 0;
+    margin-bottom: 0.75rem;
+    border-bottom: 2px solid var(--secondary-color);
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+/* Charts grid within each canal section */
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 1rem;
+}
+
+/* Individual chart cards */
+.chart-card {
+    min-height: 240px;
+}
+
+.chart-card .card-body {
+    height: 210px;
+}
+
+/* Canvas sizing */
+.chart-body canvas {
+    max-height: 100%;
+}
+
+/* Tables section wrapper — override existing grid */
+.tables-section {
+    display: block;
+}
+
+.section-title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    margin-bottom: 0.9rem;
+    padding: 0.5rem 0;
+    border-bottom: 3px solid var(--secondary-color);
+    letter-spacing: 0.3px;
+}
+
+/* RT tables: 2 columns */
+.tables-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+/* Historical tables: also 2 columns */
+.tables-grid--hist {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.table-body {
+    overflow: auto;
+    max-height: 280px;
+    padding: 0;
+}
+
+/* Historical table card has wider columns (11 cols) */
+.table-card--hist .data-table th,
+.table-card--hist .data-table td {
+    padding: 0.5rem 0.4rem;
+    font-size: 0.78rem;
+}
+
+/* ── Status Badge (chart headers + table headers) ────────────── */
+.status-badge {
+    padding: 0.3rem 0.8rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border: 1px solid transparent;
+}
+
+.badge-ok {
+    background: rgba(132, 189, 0, 0.15);
+    color: #4a8c00;
+    border-color: rgba(132, 189, 0, 0.4);
+}
+
+.badge-warning {
+    background: rgba(196, 26, 0, 0.20);
+    color: #8f1300;
+    border-color: rgba(196, 26, 0, 0.60);
+}
+
+.badge-critical {
+    background: rgba(107, 0, 0, 0.20);
+    color: #4d0000;
+    border-color: rgba(107, 0, 0, 0.60);
+    animation: pulse 1.2s ease-in-out infinite;
+}
+
+/* STD5 quick-glance badge for realtime charts */
+.std-badge {
+    margin-left: 0.5rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.3px;
+}
+
+.std-up {
+    background: rgba(245, 158, 11, 0.18);
+    color: #9a5c00;
+    border-color: rgba(245, 158, 11, 0.45);
+}
+
+.std-low {
+    background: rgba(15, 81, 50, 0.14);
+    color: #0f5132;
+    border-color: rgba(15, 81, 50, 0.35);
+}
+
+/* ── Metric badge (reference tables) ────────────────────────── */
+.metric-badge {
+    background: var(--text-secondary);
+}
+
+/* ── Row coloring by tolerance ───────────────────────────────── */
+.row-warning {
+    background: rgba(196, 26, 0, 0.14) !important;
+}
+
+.row-warning td {
+    color: #6b0f00;
+}
+
+.row-critical {
+    background: rgba(107, 0, 0, 0.19) !important;
+    font-weight: 600;
+}
+
+.row-critical td {
+    color: #3b0000;
+}
+
+/* ── Ratio5 inline chip ─────────────────────────────────────── */
+.ratio-chip {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.chip-ok       { background: rgba(90,158,0,0.22);   color: #3a6500; }
+.chip-warning  { background: rgba(196,26,0,0.24);   color: #8f1300; }
+.chip-critical { background: rgba(107,0,0,0.24);    color: #4d0000; }
+
+/* ── Estado pill ─────────────────────────────────────────────── */
+.estado-pill {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+}
+
+.pill-ok       { background: rgba(90,158,0,0.22);   color: #3a6500; border: 1px solid rgba(90,158,0,0.50); }
+.pill-warning  { background: rgba(196,26,0,0.24);   color: #8f1300; border: 1px solid rgba(196,26,0,0.55); }
+.pill-critical { background: rgba(107,0,0,0.24);    color: #4d0000; border: 1px solid rgba(107,0,0,0.55); }
+
+/* ── Responsive tweaks ─────────────────────────────────────── */
+@media (max-width: 1100px) {
+    .tables-grid {
+        grid-template-columns: 1fr;
+    }
+}
+

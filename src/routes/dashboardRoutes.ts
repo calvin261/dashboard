@@ -27,7 +27,8 @@ router.get('/data', (req: Request, res: Response) => {
     const data = getDashboardData();
 
     return res.json({
-        chart: data.chart,
+        charts: data.charts,
+        hourlyCharts: data.hourlyCharts,
         tables: includeTables ? data.tables : undefined,
         meta: data.meta
     });
