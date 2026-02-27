@@ -135,7 +135,7 @@ interface ComboState {
     prevTotal: number;
 }
 
-const WINDOW_SIZE = 90;
+const WINDOW_SIZE = 60; // Volvemos a 60 puntos para tener una curva suave
 
 function computeRawTotal(cfg: ComboConfig, step: number): number {
     const mid   = (cfg.baseMin + cfg.baseMax) / 2;
@@ -271,27 +271,35 @@ function buildHourlyChartSeries(key: ComboKey, cfg: ComboConfig): ChartSeries {
 
 function hydrateIfNeeded(now: Date): void {
     if (comboStates.get('atm_retiro')!.ticks.length > 0) return;
-    const start = new Date(now.getTime() - ((WINDOW_SIZE - 1) * 60000)); // Cambiado a 60000 para minutos
+    
+    // Inicializar con los últimos 60 puntos (1 punto cada 10 segundos para cubrir 10 minutos)
+    const start = new Date(now.getTime() - ((WINDOW_SIZE - 1) * 10000));
+    
     for (let i = 0; i < WINDOW_SIZE; i++) {
-        const tickDate = new Date(start.getTime() + (i * 60000)); // Cambiado a 60000 para minutos
-        for (const state of comboStates.values()) pushComboTick(state, tickDate);
+        const tickDate = new Date(start.getTime() + (i * 10000));
+        for (const state of comboStates.values()) {
+            pushComboTick(state, tickDate);
+        }
     }
     hydrateHourly(now);
     lastTickAt = now.getTime();
 }
 
 function updateAllStates(): void {
-    const now     = new Date();
+    const now = new Date();
     hydrateIfNeeded(now);
-    const elapsed = Math.max(1, Math.floor((now.getTime() - lastTickAt) / 60000)); // Cambiado a 60000 para minutos
-    for (let s = 0; s < elapsed; s++) {
-        const td = new Date(lastTickAt + ((s + 1) * 60000)); // Cambiado a 60000 para minutos
-        for (const state of comboStates.values()) {
-            pushComboTick(state, td);
-            updateHourlyTick(state.config.key, state.ticks[state.ticks.length - 1]);
-        }
-    }
+    
+    // Actualizar cada 10 segundos en lugar de cada minuto
+    const elapsed = Math.max(1, Math.floor((now.getTime() - lastTickAt) / 10000));
+    
     if (elapsed > 0) {
+        for (let s = 0; s < elapsed; s++) {
+            const td = new Date(lastTickAt + ((s + 1) * 10000));
+            for (const state of comboStates.values()) {
+                pushComboTick(state, td);
+                updateHourlyTick(state.config.key, state.ticks[state.ticks.length - 1]);
+            }
+        }
         lastTickAt = now.getTime();
     }
 }
