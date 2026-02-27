@@ -83,14 +83,20 @@ class DashboardManager {
         const lastRatio = ratio5Series[ratio5Series.length - 1] ?? 1;
         const level = toleranceFromRatio5(lastRatio);
         const isUpAt = (idx) => (totalSeries[idx] ?? 0) >= (meanSeries[idx] ?? 0);
+        const getDeltaColor = (delta) => {
+            if (delta >= 0)
+                return '#64a800'; // Verde
+            if (delta >= -10)
+                return '#f97316'; // Tomate intenso (Naranja)
+            return '#d41414'; // Rojo
+        };
         const lineColor = {
-            up: '#64a800',
-            down: '#d41414',
             neutral: '#94a3b8'
         };
         const segColorFn = (ctx) => {
             const i = ctx.p0DataIndex ?? 0;
-            return isUpAt(i) ? lineColor.up : lineColor.down;
+            const delta = (totalSeries[i] ?? 0) - (meanSeries[i] ?? 0);
+            return getDeltaColor(delta);
         };
         const realtimeBgPlugin = {
             id: `realtimeBg_${comboKey}`,
@@ -106,9 +112,20 @@ class DashboardManager {
                 ctx2.rect(ca.left, ca.top, ca.width, ca.height);
                 ctx2.clip();
                 for (let seg = 0; seg < totalMeta.data.length - 1; seg++) {
-                    const up = totalMeta.data[seg].y <= meanMeta.data[seg].y;
-                    const band = up ? 'rgba(100,168,0,0.12)' : 'rgba(212,20,20,0.11)';
-                    const between = up ? 'rgba(100,168,0,0.28)' : 'rgba(212,20,20,0.30)';
+                    const delta = totalSeries[seg] - meanSeries[seg];
+                    let band, between;
+                    if (delta >= 0) {
+                        band = 'rgba(100,168,0,0.12)';
+                        between = 'rgba(100,168,0,0.28)';
+                    }
+                    else if (delta >= -10) {
+                        band = 'rgba(249,115,22,0.25)'; // Tomate más intenso
+                        between = 'rgba(249,115,22,0.45)'; // Tomate más intenso
+                    }
+                    else {
+                        band = 'rgba(212,20,20,0.11)';
+                        between = 'rgba(212,20,20,0.30)';
+                    }
                     const x0 = totalMeta.data[seg].x;
                     const x1 = totalMeta.data[seg + 1].x;
                     // Fondo del tramo completo (solo dentro de ejes)
@@ -154,12 +171,12 @@ class DashboardManager {
                 {
                     label: 'Transacciones Actuales (TRX/MIN)',
                     data: totalSeries,
-                    borderColor: isUpAt(totalSeries.length - 1) ? lineColor.up : lineColor.down,
+                    borderColor: getDeltaColor((totalSeries[totalSeries.length - 1] ?? 0) - (meanSeries[meanSeries.length - 1] ?? 0)),
                     borderWidth: 3,
                     pointRadius: (ctx) => (ctx.dataIndex === totalSeries.length - 1 ? 5 : 0),
                     pointBackgroundColor: (ctx) => {
                         const i = ctx.dataIndex ?? 0;
-                        return isUpAt(i) ? lineColor.up : lineColor.down;
+                        return getDeltaColor((totalSeries[i] ?? 0) - (meanSeries[i] ?? 0));
                     },
                     tension: 0.2,
                     fill: false,
@@ -187,19 +204,28 @@ class DashboardManager {
                 },
                 tooltip: {
                     callbacks: {
+                        label: (context) => {
+                            // Ocultar las etiquetas por defecto de los datasets para personalizar el afterBody
+                            return null;
+                        },
                         afterBody: (items) => {
                             const i = items[0]?.dataIndex ?? 0;
-                            const r = ratio5Series[i] ?? 1;
-                            const tol = toleranceFromRatio5(r);
-                            const std = stdSeries[i] ?? 0;
                             const total = totalSeries[i] ?? 0;
                             const hist = meanSeries[i] ?? 0;
                             const delta = total - hist;
+                            const isUp = delta >= 0;
+                            const r = ratio5Series[i] ?? 1;
+                            const tol = toleranceFromRatio5(r);
+                            const std = stdSeries[i] ?? 0;
                             const ema = ema9Series[i] ?? 0;
                             return [
-                                `Delta: ${delta >= 0 ? '+' : ''}${delta.toFixed(2)} (${delta >= 0 ? 'UP' : 'DOWN'})`,
-                                `Ratio5: ${r.toFixed(4)} [${tol.toUpperCase()}]`,
-                                `STD5: ${std.toFixed(4)} | EMA9: ${ema.toFixed(2)}`
+                                `📊 TRX Actuales: ${total}`,
+                                `📈 Promedio Histórico: ${hist}`,
+                                `----------------------------------------`,
+                                `${isUp ? '🟢' : '🔴'} Delta: ${delta >= 0 ? '+' : ''}${delta.toFixed(2)} (${isUp ? 'SUBE' : 'BAJA'})`,
+                                `📉 EMA 9: ${ema.toFixed(2)}`,
+                                `⚖️ Ratio 5: ${r.toFixed(4)} [${tol.toUpperCase()}]`,
+                                `⚡ STD 5: ${std.toFixed(4)}`
                             ];
                         }
                     }
@@ -225,20 +251,28 @@ class DashboardManager {
             }
             // Evita estado roto de tooltip/hover al refrescar mientras hay mouseover
             try {
-                chart.stop();
-                chart.setActiveElements([]);
-                chart.tooltip?.setActiveElements([], { x: 0, y: 0 });
-            }
-            catch (_) { }
-            chart.data.labels = data.labels;
-            chart.data.datasets = data.datasets;
-            for (const ds of chart.data.datasets ?? []) {
-                if (hiddenByLabel.has(ds.label)) {
-                    ds.hidden = hiddenByLabel.get(ds.label) ?? false;
+                // Guardar el estado del tooltip activo
+                const activeElements = chart.getActiveElements();
+                const tooltipActive = chart.tooltip?._active;
+                chart.data.labels = data.labels;
+                chart.data.datasets = data.datasets;
+                for (const ds of chart.data.datasets ?? []) {
+                    if (hiddenByLabel.has(ds.label)) {
+                        ds.hidden = hiddenByLabel.get(ds.label) ?? false;
+                    }
+                }
+                chart.options = options;
+                chart.update('none');
+                // Restaurar el estado del tooltip si estaba activo
+                if (activeElements && activeElements.length > 0) {
+                    chart.setActiveElements(activeElements);
+                    if (tooltipActive && tooltipActive.length > 0) {
+                        chart.tooltip.setActiveElements(tooltipActive, { x: 0, y: 0 });
+                    }
+                    chart.update('none');
                 }
             }
-            chart.options = options;
-            chart.update('none');
+            catch (_) { }
         }
         else {
             this.charts[comboKey] = new Chart(canvas, {
@@ -271,7 +305,7 @@ class DashboardManager {
                 stdBadge.className = 'status-badge std-badge std-low';
                 cardHeader.appendChild(stdBadge);
             }
-            stdBadge.textContent = `STD5 ${stdUp ? 'UP' : 'BAJO'} ${stdNow.toFixed(2)}`;
+            stdBadge.innerHTML = `STD5 ${stdUp ? '&#9650; SUBE' : '&#9660; BAJA'} ${stdNow.toFixed(2)}`;
             stdBadge.className = `status-badge std-badge ${stdUp ? 'std-up' : 'std-low'}`;
         }
     }
@@ -280,30 +314,25 @@ class DashboardManager {
         const canvas = document.getElementById(canvasId);
         if (!canvas)
             return;
-        if (this.hourlyCharts[comboKey]) {
-            try {
-                this.hourlyCharts[comboKey].destroy();
-            }
-            catch (_) { }
-            this.hourlyCharts[comboKey] = null;
-        }
         const { labels, totalSeries, meanSeries, ratio5Series } = series;
-        const HOURLY_COLORS = {
-            up: {
-                stroke: '#64a800',
-                band: 'rgba(100,168,0,0.14)',
-                between: 'rgba(100,168,0,0.32)'
-            },
-            down: {
-                stroke: '#d41414',
-                band: 'rgba(212,20,20,0.13)',
-                between: 'rgba(212,20,20,0.34)'
-            }
+        const getDeltaColor = (delta) => {
+            if (delta >= 0)
+                return '#64a800'; // Verde
+            if (delta >= -10)
+                return '#f97316'; // Tomate intenso (Naranja)
+            return '#d41414'; // Rojo
         };
-        const isUpAt = (idx) => (totalSeries[idx] ?? 0) >= (meanSeries[idx] ?? 0);
+        const getDeltaColors = (delta) => {
+            if (delta >= 0)
+                return { stroke: '#64a800', band: 'rgba(100,168,0,0.14)', between: 'rgba(100,168,0,0.32)' };
+            if (delta >= -10)
+                return { stroke: '#f97316', band: 'rgba(249,115,22,0.25)', between: 'rgba(249,115,22,0.45)' }; // Tomate más intenso
+            return { stroke: '#d41414', band: 'rgba(212,20,20,0.13)', between: 'rgba(212,20,20,0.34)' };
+        };
         const segColorFn = (ctx) => {
             const i = ctx.p0DataIndex ?? 0;
-            return isUpAt(i) ? HOURLY_COLORS.up.stroke : HOURLY_COLORS.down.stroke;
+            const delta = (totalSeries[i] ?? 0) - (meanSeries[i] ?? 0);
+            return getDeltaColor(delta);
         };
         const hourlyBgPlugin = {
             id: `hourlyBg_${comboKey}`,
@@ -319,8 +348,8 @@ class DashboardManager {
                 ctx2.rect(ca.left, ca.top, ca.width, ca.height);
                 ctx2.clip();
                 for (let seg = 0; seg < totalMeta.data.length - 1; seg++) {
-                    const up = isUpAt(seg);
-                    const colors = up ? HOURLY_COLORS.up : HOURLY_COLORS.down;
+                    const delta = totalSeries[seg] - meanSeries[seg];
+                    const colors = getDeltaColors(delta);
                     const x0 = totalMeta.data[seg].x;
                     const x1 = totalMeta.data[seg + 1].x;
                     // Full-height band by segment (inside XY axes only)
@@ -339,132 +368,186 @@ class DashboardManager {
                 ctx2.restore();
             }
         };
-        this.hourlyCharts[comboKey] = new Chart(canvas, {
-            type: 'line',
-            plugins: [hourlyBgPlugin],
-            data: {
-                labels,
-                datasets: [
-                    {
-                        label: 'Promedio Historico (Referencia)',
-                        data: meanSeries,
-                        borderColor: '#94a3b8',
-                        borderDash: [5, 3],
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        tension: 0.25,
-                        fill: false,
-                        order: 1
+        const data = {
+            labels,
+            datasets: [
+                {
+                    label: 'Promedio Historico (Referencia)',
+                    data: meanSeries,
+                    borderColor: '#94a3b8',
+                    borderDash: [5, 3],
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.25,
+                    fill: false,
+                    order: 1
+                },
+                {
+                    label: 'Transacciones Actuales (TRX/H)',
+                    data: totalSeries,
+                    borderColor: getDeltaColor((totalSeries[totalSeries.length - 1] ?? 0) - (meanSeries[meanSeries.length - 1] ?? 0)),
+                    borderWidth: 3,
+                    pointRadius: (ctx) => (ctx.dataIndex === totalSeries.length - 1 ? 5 : 0),
+                    pointBackgroundColor: (ctx) => {
+                        const i = ctx.dataIndex ?? 0;
+                        return getDeltaColor((totalSeries[i] ?? 0) - (meanSeries[i] ?? 0));
                     },
-                    {
-                        label: 'Transacciones Actuales (TRX/H)',
-                        data: totalSeries,
-                        borderColor: HOURLY_COLORS.up.stroke,
-                        borderWidth: 3,
-                        pointRadius: (ctx) => (ctx.dataIndex === totalSeries.length - 1 ? 5 : 0),
-                        pointBackgroundColor: (ctx) => {
-                            const i = ctx.dataIndex ?? 0;
-                            return isUpAt(i) ? HOURLY_COLORS.up.stroke : HOURLY_COLORS.down.stroke;
+                    tension: 0.25,
+                    fill: false,
+                    segment: { borderColor: segColorFn },
+                    order: 2
+                }
+            ]
+        };
+        const options = {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 350 },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            // Ocultar las etiquetas por defecto de los datasets para personalizar el afterBody
+                            return null;
                         },
-                        tension: 0.25,
-                        fill: false,
-                        segment: { borderColor: segColorFn },
-                        order: 2
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 350 },
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
-                    tooltip: {
-                        callbacks: {
-                            afterBody: (items) => {
-                                const i = items[0]?.dataIndex ?? 0;
-                                const total = totalSeries[i] ?? 0;
-                                const mean = meanSeries[i] ?? 0;
-                                const up = total >= mean;
-                                const diff = total - mean;
-                                const r = ratio5Series[i] ?? 1;
-                                return [
-                                    `Delta: ${diff >= 0 ? '+' : ''}${diff.toFixed(2)} (${up ? 'TOTAL > HISTORICO' : 'HISTORICO > TOTAL'})`,
-                                    `Ratio5: ${r.toFixed(4)}`
-                                ];
-                            }
+                        afterBody: (items) => {
+                            const i = items[0]?.dataIndex ?? 0;
+                            const total = totalSeries[i] ?? 0;
+                            const mean = meanSeries[i] ?? 0;
+                            const diff = total - mean;
+                            const isUp = diff >= 0;
+                            const r = ratio5Series[i] ?? 1;
+                            const tol = toleranceFromRatio5(r);
+                            return [
+                                `📊 TRX Actuales: ${total}`,
+                                `📈 Promedio Histórico: ${mean}`,
+                                `----------------------------------------`,
+                                `${isUp ? '🟢' : '🔴'} Delta: ${diff >= 0 ? '+' : ''}${diff.toFixed(2)} (${isUp ? 'SUBE' : 'BAJA'})`,
+                                `⚖️ Ratio 5: ${r.toFixed(4)} [${tol.toUpperCase()}]`
+                            ];
                         }
                     }
-                },
-                scales: {
-                    x: { ticks: { maxTicksLimit: 12, font: { size: 10 }, color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.04)' } },
-                    y: { ticks: { font: { size: 10 }, color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.06)' } }
+                }
+            },
+            scales: {
+                x: { ticks: { maxTicksLimit: 24, font: { size: 10 }, color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.04)' } },
+                y: { ticks: { font: { size: 10 }, color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.06)' } }
+            }
+        };
+        const chart = this.hourlyCharts[comboKey];
+        if (chart) {
+            const hiddenByLabel = new Map();
+            for (const ds of chart.data.datasets ?? []) {
+                hiddenByLabel.set(ds.label, !!ds.hidden);
+            }
+            try {
+                const activeElements = chart.getActiveElements();
+                const tooltipActive = chart.tooltip?._active;
+                chart.data.labels = data.labels;
+                chart.data.datasets = data.datasets;
+                for (const ds of chart.data.datasets ?? []) {
+                    if (hiddenByLabel.has(ds.label)) {
+                        ds.hidden = hiddenByLabel.get(ds.label) ?? false;
+                    }
+                }
+                chart.options = options;
+                chart.update('none');
+                if (activeElements && activeElements.length > 0) {
+                    chart.setActiveElements(activeElements);
+                    if (tooltipActive && tooltipActive.length > 0) {
+                        chart.tooltip.setActiveElements(tooltipActive, { x: 0, y: 0 });
+                    }
+                    chart.update('none');
                 }
             }
-        });
+            catch (_) { }
+        }
+        else {
+            this.hourlyCharts[comboKey] = new Chart(canvas, {
+                type: 'line',
+                plugins: [hourlyBgPlugin],
+                data,
+                options
+            });
+        }
         const badge = document.getElementById(`hbadge_${comboKey}`);
         if (badge) {
             const lastIdx = Math.max(0, totalSeries.length - 1);
-            const isUp = isUpAt(lastIdx);
-            badge.textContent = isUp ? 'UP' : 'DOWN';
+            const delta = (totalSeries[lastIdx] ?? 0) - (meanSeries[lastIdx] ?? 0);
+            const isUp = delta >= 0;
+            badge.textContent = isUp ? 'SUBE' : 'BAJA';
             badge.className = `status-badge ${isUp ? 'badge-ok' : 'badge-critical'}`;
         }
     }
     // -- Table rendering ------------------------------------------
+    parseFechaTrx(fecha) {
+        const parts = fecha.split(' ');
+        if (parts.length !== 2)
+            return 0;
+        const dateParts = parts[0].split('-');
+        const timeParts = parts[1].split(':');
+        if (dateParts.length !== 3 || timeParts.length !== 2)
+            return 0;
+        const [dd, mm, yyyy] = dateParts;
+        const [hh, min] = timeParts;
+        return new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min)).getTime();
+    }
     renderRealtimeTables(data) {
+        const tbody = document.getElementById('rt_body_all');
+        if (!tbody)
+            return;
+        let allRows = [];
         for (const { key } of COMBO_META) {
-            const tbody = document.getElementById(`rt_body_${key}`);
-            if (!tbody)
-                continue;
             const rows = data[key] ?? [];
-            const lastRow = rows[rows.length - 1];
-            const lastRatio = lastRow?.ratio5 ?? 1;
-            const badge = document.getElementById(`rt_badge_${key}`);
-            if (badge) {
-                const tol = toleranceFromRatio5(lastRatio);
-                badge.textContent = tol.toUpperCase();
-                badge.className = `status-badge badge-${tol}`;
-            }
-            tbody.innerHTML = [...rows].reverse().map(row => {
-                const tol = row.estado ?? toleranceFromRatio5(row.ratio5);
-                const cls = PALETTE[tol]?.row ?? '';
-                return `<tr class="${cls}">
-                    <td>${row.fechaTrx}</td>
-                    <td>${row.transaccion}</td>
-                    <td>${row.total}</td>
-                    <td>${fmt(row.rollingSd5, 6)}</td>
-                    <td><span class="ratio-chip chip-${tol}">${fmt(row.ratio5, 4)}</span></td>
-                    <td><span class="estado-pill pill-${tol}">${tol.toUpperCase()}</span></td>
-                </tr>`;
-            }).join('');
+            allRows = allRows.concat(rows);
         }
+        allRows.sort((a, b) => this.parseFechaTrx(b.fechaTrx) - this.parseFechaTrx(a.fechaTrx));
+        tbody.innerHTML = allRows.map(row => {
+            const tol = row.estado ?? toleranceFromRatio5(row.ratio5);
+            const cls = PALETTE[tol]?.row ?? '';
+            return `<tr class="${cls}">
+                <td>${row.fechaTrx}</td>
+                <td>${row.tipoCanal}</td>
+                <td>${row.transaccion}</td>
+                <td>${row.total}</td>
+                <td>${fmt(row.rollingSd5, 6)}</td>
+                <td><span class="ratio-chip chip-${tol}">${fmt(row.ratio5, 4)}</span></td>
+                <td><span class="estado-pill pill-${tol}">${tol.toUpperCase()}</span></td>
+            </tr>`;
+        }).join('');
     }
     renderHistoricalTables(data) {
+        const tbody = document.getElementById('hist_body_all');
+        if (!tbody)
+            return;
+        let allRows = [];
         for (const { key } of COMBO_META) {
-            const tbody = document.getElementById(`hist_body_${key}`);
-            if (!tbody)
-                continue;
             const rows = data[key] ?? [];
-            tbody.innerHTML = [...rows].reverse().map(row => {
-                const ratio = row.ratio5 ?? 1;
-                const tol = toleranceFromRatio5(ratio);
-                const cls = PALETTE[tol].row;
-                return `<tr class="${cls}">
-                    <td>${row.fecha}</td>
-                    <td>${row.tipoDia}</td>
-                    <td>${row.total}</td>
-                    <td>${row.lag1 ?? 'NULL'}</td>
-                    <td>${row.lag5 ?? 'NULL'}</td>
-                    <td>${row.lag15 ?? 'NULL'}</td>
-                    <td>${fmt(row.rollingMean5, 4)}</td>
-                    <td>${fmt(row.rollingMean15, 4)}</td>
-                    <td>${fmt(row.rollingSd5, 6)}</td>
-                    <td><span class="ratio-chip chip-${tol}">${row.ratio5 !== null ? fmt(row.ratio5, 4) : 'NULL'}</span></td>
-                    <td>${row.target}</td>
-                </tr>`;
-            }).join('');
+            allRows = allRows.concat(rows);
         }
+        allRows.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+        tbody.innerHTML = allRows.map(row => {
+            const ratio = row.ratio5 ?? 1;
+            const tol = toleranceFromRatio5(ratio);
+            const cls = PALETTE[tol].row;
+            return `<tr class="${cls}">
+                <td>${row.fecha}</td>
+                <td>${row.tipoDia}</td>
+                <td>${row.tipoCanal}</td>
+                <td>${row.transaccion}</td>
+                <td>${row.total}</td>
+                <td>${row.lag1 ?? 'NULL'}</td>
+                <td>${row.lag5 ?? 'NULL'}</td>
+                <td>${row.lag15 ?? 'NULL'}</td>
+                <td>${fmt(row.rollingMean5, 4)}</td>
+                <td>${fmt(row.rollingMean15, 4)}</td>
+                <td>${fmt(row.rollingSd5, 6)}</td>
+                <td><span class="ratio-chip chip-${tol}">${row.ratio5 !== null ? fmt(row.ratio5, 4) : 'NULL'}</span></td>
+                <td>${row.target}</td>
+            </tr>`;
+        }).join('');
     }
     // -- Apply payload --------------------------------------------
     applyPayload(payload) {

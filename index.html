@@ -229,140 +229,20 @@
             <!-- Tablas Tiempo Real -->
             <section class="tables-section">
                 <h2 class="section-title">Tiempo Real</h2>
-                <div class="tables-grid">
+                <div class="tables-grid" style="grid-template-columns: 1fr;">
 
-                    <!-- ATM - Avance -->
+                    <!-- Tabla Unificada Tiempo Real -->
                     <div class="card table-card">
                         <div class="card-header">
-                            <h3>ATM &#8212; AVANCE</h3>
-                            <span id="rt_badge_atm_avance" class="status-badge badge-ok">OK</span>
+                            <h3>TODAS LAS TRANSACCIONES</h3>
                         </div>
                         <div class="card-body table-body">
                             <table class="data-table">
                                 <thead><tr>
-                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
+                                    <th>Fecha Trx</th><th>Canal</th><th>Transaccion</th><th>Total</th>
                                     <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
                                 </tr></thead>
-                                <tbody id="rt_body_atm_avance"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- ATM - Deposito -->
-                    <div class="card table-card">
-                        <div class="card-header">
-                            <h3>ATM &#8212; DEPOSITO</h3>
-                            <span id="rt_badge_atm_deposito" class="status-badge badge-ok">OK</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
-                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
-                                </tr></thead>
-                                <tbody id="rt_body_atm_deposito"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- ATM - Pago TC -->
-                    <div class="card table-card">
-                        <div class="card-header">
-                            <h3>ATM &#8212; PAGO TC</h3>
-                            <span id="rt_badge_atm_pago_tc" class="status-badge badge-ok">OK</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
-                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
-                                </tr></thead>
-                                <tbody id="rt_body_atm_pago_tc"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- ATM - Retiro -->
-                    <div class="card table-card">
-                        <div class="card-header">
-                            <h3>ATM &#8212; RETIRO</h3>
-                            <span id="rt_badge_atm_retiro" class="status-badge badge-ok">OK</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
-                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
-                                </tr></thead>
-                                <tbody id="rt_body_atm_retiro"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- ATM - Transferencias -->
-                    <div class="card table-card">
-                        <div class="card-header">
-                            <h3>ATM &#8212; TRANSFERENCIAS</h3>
-                            <span id="rt_badge_atm_transferencias" class="status-badge badge-ok">OK</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
-                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
-                                </tr></thead>
-                                <tbody id="rt_body_atm_transferencias"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- ATM SERVIPAGOS - Avance -->
-                    <div class="card table-card">
-                        <div class="card-header">
-                            <h3>ATM SERVIPAGOS &#8212; AVANCE</h3>
-                            <span id="rt_badge_servipagos_avance" class="status-badge badge-ok">OK</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
-                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
-                                </tr></thead>
-                                <tbody id="rt_body_servipagos_avance"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- ATM SERVIPAGOS - Retiro -->
-                    <div class="card table-card">
-                        <div class="card-header">
-                            <h3>ATM SERVIPAGOS &#8212; RETIRO</h3>
-                            <span id="rt_badge_servipagos_retiro" class="status-badge badge-ok">OK</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
-                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
-                                </tr></thead>
-                                <tbody id="rt_body_servipagos_retiro"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- CLIENTES ATM RED - Retiro -->
-                    <div class="card table-card">
-                        <div class="card-header">
-                            <h3>CLIENTES ATM RED &#8212; RETIRO</h3>
-                            <span id="rt_badge_clientes_red_retiro" class="status-badge badge-ok">OK</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha Trx</th><th>Transaccion</th><th>Total</th>
-                                    <th>STD 5</th><th>Ratio 5</th><th>Estado</th>
-                                </tr></thead>
-                                <tbody id="rt_body_clientes_red_retiro"></tbody>
+                                <tbody id="rt_body_all"></tbody>
                             </table>
                         </div>
                     </div>
@@ -373,156 +253,23 @@
             <!-- Tablas Historico -->
             <section class="tables-section">
                 <h2 class="section-title">Historico (2025-10-01)</h2>
-                <div class="tables-grid tables-grid--hist">
+                <div class="tables-grid tables-grid--hist" style="grid-template-columns: 1fr;">
 
-                    <!-- ATM - Avance -->
+                    <!-- Tabla Unificada Historico -->
                     <div class="card table-card table-card--hist">
                         <div class="card-header">
-                            <h3>ATM &#8212; AVANCE (Hist.)</h3>
+                            <h3>TODAS LAS TRANSACCIONES (Hist.)</h3>
                             <span class="metric-badge">Referencia</span>
                         </div>
                         <div class="card-body table-body">
                             <table class="data-table">
                                 <thead><tr>
-                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
+                                    <th>Fecha</th><th>Tipo Dia</th><th>Canal</th><th>Transaccion</th><th>Total</th>
                                     <th>LAG1</th><th>LAG5</th><th>LAG15</th>
                                     <th>Mean5</th><th>Mean15</th><th>STD5</th>
                                     <th>Ratio5</th><th>Target</th>
                                 </tr></thead>
-                                <tbody id="hist_body_atm_avance"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- ATM - Deposito -->
-                    <div class="card table-card table-card--hist">
-                        <div class="card-header">
-                            <h3>ATM &#8212; DEPOSITO (Hist.)</h3>
-                            <span class="metric-badge">Referencia</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
-                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
-                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
-                                    <th>Ratio5</th><th>Target</th>
-                                </tr></thead>
-                                <tbody id="hist_body_atm_deposito"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- ATM - Pago TC -->
-                    <div class="card table-card table-card--hist">
-                        <div class="card-header">
-                            <h3>ATM &#8212; PAGO TC (Hist.)</h3>
-                            <span class="metric-badge">Referencia</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
-                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
-                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
-                                    <th>Ratio5</th><th>Target</th>
-                                </tr></thead>
-                                <tbody id="hist_body_atm_pago_tc"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- ATM - Retiro -->
-                    <div class="card table-card table-card--hist">
-                        <div class="card-header">
-                            <h3>ATM &#8212; RETIRO (Hist.)</h3>
-                            <span class="metric-badge">Referencia</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
-                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
-                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
-                                    <th>Ratio5</th><th>Target</th>
-                                </tr></thead>
-                                <tbody id="hist_body_atm_retiro"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- ATM - Transferencias -->
-                    <div class="card table-card table-card--hist">
-                        <div class="card-header">
-                            <h3>ATM &#8212; TRANSFERENCIAS (Hist.)</h3>
-                            <span class="metric-badge">Referencia</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
-                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
-                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
-                                    <th>Ratio5</th><th>Target</th>
-                                </tr></thead>
-                                <tbody id="hist_body_atm_transferencias"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- SERVIPAGOS - Avance -->
-                    <div class="card table-card table-card--hist">
-                        <div class="card-header">
-                            <h3>ATM SERVIPAGOS &#8212; AVANCE (Hist.)</h3>
-                            <span class="metric-badge">Referencia</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
-                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
-                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
-                                    <th>Ratio5</th><th>Target</th>
-                                </tr></thead>
-                                <tbody id="hist_body_servipagos_avance"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- SERVIPAGOS - Retiro -->
-                    <div class="card table-card table-card--hist">
-                        <div class="card-header">
-                            <h3>ATM SERVIPAGOS &#8212; RETIRO (Hist.)</h3>
-                            <span class="metric-badge">Referencia</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
-                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
-                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
-                                    <th>Ratio5</th><th>Target</th>
-                                </tr></thead>
-                                <tbody id="hist_body_servipagos_retiro"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- CLIENTES RED - Retiro -->
-                    <div class="card table-card table-card--hist">
-                        <div class="card-header">
-                            <h3>CLIENTES ATM RED &#8212; RETIRO (Hist.)</h3>
-                            <span class="metric-badge">Referencia</span>
-                        </div>
-                        <div class="card-body table-body">
-                            <table class="data-table">
-                                <thead><tr>
-                                    <th>Fecha</th><th>Tipo Dia</th><th>Total</th>
-                                    <th>LAG1</th><th>LAG5</th><th>LAG15</th>
-                                    <th>Mean5</th><th>Mean15</th><th>STD5</th>
-                                    <th>Ratio5</th><th>Target</th>
-                                </tr></thead>
-                                <tbody id="hist_body_clientes_red_retiro"></tbody>
+                                <tbody id="hist_body_all"></tbody>
                             </table>
                         </div>
                     </div>

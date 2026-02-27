@@ -88,7 +88,7 @@ const COMBOS: ComboConfig[] = [
 // ─── UTILITIES ──────────────────────────────────────────────────────────────
 
 function toTimeLabel(d: Date): string {
-    return [d.getHours(), d.getMinutes(), d.getSeconds()]
+    return [d.getHours(), d.getMinutes()]
         .map(n => String(n).padStart(2, '0'))
         .join(':');
 }
@@ -202,10 +202,11 @@ const hourlyStates: Map<ComboKey, HourlyComboState> = new Map(
 );
 
 function computeHourlySynthetic(cfg: ComboConfig, hour: number, seed: number): number {
-    const curve = Math.max(0.05, Math.sin((hour - 5) * Math.PI / 15));
+    const curve = Math.max(0.2, Math.sin((hour - 5) * Math.PI / 15)); // Aumentado el mínimo de la curva
     const mid   = (cfg.baseMin + cfg.baseMax) / 2;
-    const noise = Math.sin(seed * 7.3 + hour * 1.9) * 0.12;
-    return Math.max(0, Math.round(mid * 55 * curve * (1 + noise)));
+    const noise = Math.sin(seed * 7.3 + hour * 1.9) * 0.3; // Aumentado el ruido
+    // Asegurar que nunca sea 0, multiplicador ajustado para que tenga sentido con los datos por minuto
+    return Math.max(Math.round(cfg.baseMin * 30), Math.round(mid * 60 * curve * (1 + noise))); 
 }
 
 function hydrateHourly(now: Date): void {
@@ -270,9 +271,9 @@ function buildHourlyChartSeries(key: ComboKey, cfg: ComboConfig): ChartSeries {
 
 function hydrateIfNeeded(now: Date): void {
     if (comboStates.get('atm_retiro')!.ticks.length > 0) return;
-    const start = new Date(now.getTime() - ((WINDOW_SIZE - 1) * 1000));
+    const start = new Date(now.getTime() - ((WINDOW_SIZE - 1) * 60000)); // Cambiado a 60000 para minutos
     for (let i = 0; i < WINDOW_SIZE; i++) {
-        const tickDate = new Date(start.getTime() + (i * 1000));
+        const tickDate = new Date(start.getTime() + (i * 60000)); // Cambiado a 60000 para minutos
         for (const state of comboStates.values()) pushComboTick(state, tickDate);
     }
     hydrateHourly(now);
@@ -282,15 +283,17 @@ function hydrateIfNeeded(now: Date): void {
 function updateAllStates(): void {
     const now     = new Date();
     hydrateIfNeeded(now);
-    const elapsed = Math.max(1, Math.floor((now.getTime() - lastTickAt) / 1000));
+    const elapsed = Math.max(1, Math.floor((now.getTime() - lastTickAt) / 60000)); // Cambiado a 60000 para minutos
     for (let s = 0; s < elapsed; s++) {
-        const td = new Date(lastTickAt + ((s + 1) * 1000));
+        const td = new Date(lastTickAt + ((s + 1) * 60000)); // Cambiado a 60000 para minutos
         for (const state of comboStates.values()) {
             pushComboTick(state, td);
             updateHourlyTick(state.config.key, state.ticks[state.ticks.length - 1]);
         }
     }
-    lastTickAt = now.getTime();
+    if (elapsed > 0) {
+        lastTickAt = now.getTime();
+    }
 }
 
 // ─── ROW BUILDERS ────────────────────────────────────────────────────────────
