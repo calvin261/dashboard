@@ -87,27 +87,36 @@ const COMBOS: ComboConfig[] = [
 
 // ─── UTILITIES ──────────────────────────────────────────────────────────────
 
+function toUTC5(d: Date): Date {
+    const localOffset = d.getTimezoneOffset();
+    const targetOffset = 300; // UTC-5 (Ecuador, Colombia, Peru)
+    return new Date(d.getTime() + (localOffset - targetOffset) * 60000);
+}
+
 function toTimeLabel(d: Date): string {
-    return [d.getHours(), d.getMinutes()]
+    const d5 = toUTC5(d);
+    return [d5.getHours(), d5.getMinutes()]
         .map(n => String(n).padStart(2, '0'))
         .join(':');
 }
 
 function toDateTimeLabel(d: Date): string {
-    const dd   = String(d.getDate()).padStart(2, '0');
-    const mm   = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    const hh   = String(d.getHours()).padStart(2, '0');
-    const min  = String(d.getMinutes()).padStart(2, '0');
+    const d5 = toUTC5(d);
+    const dd   = String(d5.getDate()).padStart(2, '0');
+    const mm   = String(d5.getMonth() + 1).padStart(2, '0');
+    const yyyy = d5.getFullYear();
+    const hh   = String(d5.getHours()).padStart(2, '0');
+    const min  = String(d5.getMinutes()).padStart(2, '0');
     return `${dd}-${mm}-${yyyy} ${hh}:${min}`;
 }
 
 function toHistoricalDateLabel(d: Date): string {
-    const yyyy = d.getFullYear();
-    const mm   = String(d.getMonth() + 1).padStart(2, '0');
-    const dd   = String(d.getDate()).padStart(2, '0');
-    const hh   = String(d.getHours()).padStart(2, '0');
-    const min  = String(d.getMinutes()).padStart(2, '0');
+    const d5 = toUTC5(d);
+    const yyyy = d5.getFullYear();
+    const mm   = String(d5.getMonth() + 1).padStart(2, '0');
+    const dd   = String(d5.getDate()).padStart(2, '0');
+    const hh   = String(d5.getHours()).padStart(2, '0');
+    const min  = String(d5.getMinutes()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd} ${hh}:${min}:00`;
 }
 
@@ -213,7 +222,7 @@ function hydrateHourly(now: Date): void {
     for (const cfg of COMBOS) {
         const hstate = hourlyStates.get(cfg.key)!;
         if (hstate.buckets.length > 0) continue;
-        const currentHour = now.getHours();
+        const currentHour = toUTC5(now).getHours();
         for (let i = HOURLY_WINDOW - 1; i >= 0; i--) {
             const h     = (currentHour - i + 24) % 24;
             const label = `${String(h).padStart(2, '0')}:00`;
@@ -231,7 +240,7 @@ function hydrateHourly(now: Date): void {
 
 function updateHourlyTick(key: ComboKey, tick: ComboTick): void {
     const hstate = hourlyStates.get(key)!;
-    const h      = tick.timestamp.getHours();
+    const h      = toUTC5(tick.timestamp).getHours();
     if (hstate.currentHour === -1) hstate.currentHour = h;
     if (h !== hstate.currentHour) {
         const total    = hstate.accumTotal;
@@ -252,7 +261,7 @@ function buildHourlyChartSeries(key: ComboKey, cfg: ComboConfig): ChartSeries {
     const hstate = hourlyStates.get(key)!;
     const all    = [...hstate.buckets];
     if (hstate.accumTotal > 0) {
-        const h     = hstate.currentHour >= 0 ? hstate.currentHour : new Date().getHours();
+        const h     = hstate.currentHour >= 0 ? hstate.currentHour : toUTC5(new Date()).getHours();
         const label = `${String(h).padStart(2, '0')}:00*`;
         const recent5 = hstate.buckets.slice(-5).map(b => b.total);
         const rollingMean5: number | null = recent5.length >= 5
