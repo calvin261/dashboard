@@ -136,7 +136,7 @@ class DashboardManager {
     private isSocketConnected = false;
     private reconnectTimer: number | null = null;
     private readonly wsReconnectMs = 3000;
-    private readonly refreshIntervalMs = 5000;
+    private readonly refreshIntervalMs = 10000;
 
     // -- Chart rendering ------------------------------------------
 

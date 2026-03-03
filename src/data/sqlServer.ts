@@ -59,6 +59,43 @@ export async function getSqlServerPool(): Promise<ConnectionPool | null> {
     return poolPromise;
 }
 
+// ─── REAL-TIME QUERY ────────────────────────────────────────────────────────
+
+export interface RealtimeTotalRow {
+    tipoCanal: string;
+    transaccion: string;
+    total: number;
+}
+
+/**
+ * Fetches the transaction totals for the last 10 seconds from the given table/view.
+ * Groups by TIPO_CANAL + TRANSACCION and sums TOTAL.
+ * Returns an empty array if SQL Server is disabled or unreachable.
+ */
+export async function fetchRealtimeTotals(
+    tableName: string = process.env.SQLSERVER_REALTIME_TABLE ?? 'V_TIEMPO_REAL'
+): Promise<RealtimeTotalRow[]> {
+    const pool = await getSqlServerPool();
+    if (!pool) return [];
+
+    const result = await pool.request().query(`
+        SELECT
+            TIPO_CANAL    AS tipoCanal,
+            TRANSACCION   AS transaccion,
+            SUM(TOTAL)    AS total
+        FROM ${tableName}
+        WHERE FECHA_TRX >= DATEADD(SECOND, -10, GETDATE())
+          AND MODELO = 'TIEMPO REAL'
+        GROUP BY TIPO_CANAL, TRANSACCION
+    `);
+
+    return (result.recordset as any[]).map(row => ({
+        tipoCanal:   String(row.tipoCanal   ?? '').trim(),
+        transaccion: String(row.transaccion ?? '').trim(),
+        total:       Number(row.total       ?? 0)
+    }));
+}
+
 export async function testSqlServerConnection(): Promise<{
     enabled: boolean;
     connected: boolean;

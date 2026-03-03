@@ -1,3 +1,5 @@
+import { isSqlServerEnabled, fetchRealtimeTotals, RealtimeTotalRow } from './sqlServer';
+
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
 export type ComboKey =
@@ -67,7 +69,8 @@ export interface DashboardPayload {
 
 interface ComboConfig {
     key: ComboKey;
-    canal: string;
+    canal: string;         // display / label name
+    sqlCanal: string;      // TIPO_CANAL value as it appears in SQL Server
     transaccion: string;
     chartGroup: 'atm' | 'servipagos' | 'clientesRed';
     baseMin: number;
@@ -75,14 +78,14 @@ interface ComboConfig {
 }
 
 const COMBOS: ComboConfig[] = [
-    { key: 'atm_avance',         canal: 'ATM',                         transaccion: 'AVANCE',         chartGroup: 'atm',  baseMin: 1,  baseMax: 3   },
-    { key: 'atm_deposito',       canal: 'ATM',                         transaccion: 'DEPOSITO',       chartGroup: 'atm',  baseMin: 3,  baseMax: 14  },
-    { key: 'atm_pago_tc',        canal: 'ATM',                         transaccion: 'PAGO TC',        chartGroup: 'atm',  baseMin: 1,  baseMax: 3   },
-    { key: 'atm_retiro',         canal: 'ATM',                         transaccion: 'RETIRO',         chartGroup: 'atm',  baseMin: 50, baseMax: 146 },
-    { key: 'atm_transferencias', canal: 'ATM',                         transaccion: 'TRANSFERENCIAS', chartGroup: 'atm',  baseMin: 1,  baseMax: 2   },
-    { key: 'servipagos_avance',         canal: 'ATM SERVIPAGOS',              transaccion: 'AVANCE',         chartGroup: 'servipagos',  baseMin: 1,  baseMax: 6   },
-    { key: 'servipagos_retiro',         canal: 'ATM SERVIPAGOS',              transaccion: 'RETIRO',         chartGroup: 'servipagos',  baseMin: 1,  baseMax: 4   },
-    { key: 'clientes_red_retiro',       canal: 'CLIENTES ATM RED',            transaccion: 'RETIRO',         chartGroup: 'clientesRed', baseMin: 10, baseMax: 35  },
+    { key: 'atm_avance',          canal: 'ATM',             sqlCanal: 'ATM PRODUBANCO',              transaccion: 'AVANCE',         chartGroup: 'atm',         baseMin: 1,  baseMax: 3   },
+    { key: 'atm_deposito',        canal: 'ATM',             sqlCanal: 'ATM PRODUBANCO',              transaccion: 'DEPOSITO',       chartGroup: 'atm',         baseMin: 3,  baseMax: 14  },
+    { key: 'atm_pago_tc',         canal: 'ATM',             sqlCanal: 'ATM PRODUBANCO',              transaccion: 'PAGO TC',        chartGroup: 'atm',         baseMin: 1,  baseMax: 3   },
+    { key: 'atm_retiro',          canal: 'ATM',             sqlCanal: 'ATM PRODUBANCO',              transaccion: 'RETIRO',         chartGroup: 'atm',         baseMin: 50, baseMax: 146 },
+    { key: 'atm_transferencias',  canal: 'ATM',             sqlCanal: 'ATM PRODUBANCO',              transaccion: 'TRANSFERENCIAS', chartGroup: 'atm',         baseMin: 1,  baseMax: 2   },
+    { key: 'servipagos_avance',   canal: 'ATM SERVIPAGOS',  sqlCanal: 'ATM SERVIPAGOS',              transaccion: 'AVANCE',         chartGroup: 'servipagos',  baseMin: 1,  baseMax: 6   },
+    { key: 'servipagos_retiro',   canal: 'ATM SERVIPAGOS',  sqlCanal: 'ATM SERVIPAGOS',              transaccion: 'RETIRO',         chartGroup: 'servipagos',  baseMin: 1,  baseMax: 4   },
+    { key: 'clientes_red_retiro', canal: 'CLIENTES ATM RED', sqlCanal: 'CLIENTES PRODUBANCO ATM RED', transaccion: 'RETIRO',         chartGroup: 'clientesRed', baseMin: 10, baseMax: 35  },
 ];
 
 // ─── UTILITIES ──────────────────────────────────────────────────────────────
@@ -153,11 +156,14 @@ function computeRawTotal(cfg: ComboConfig, step: number): number {
     return Math.max(cfg.baseMin, Math.round(mid + wave + noise));
 }
 
-function pushComboTick(state: ComboState, timestamp: Date): void {
-    const raw   = computeRawTotal(state.config, state.step);
-    const total = state.prevTotal === 0
-        ? raw
-        : Math.round(state.prevTotal * 0.35 + raw * 0.65);
+function pushComboTick(state: ComboState, timestamp: Date, sqlTotal?: number): void {
+    // Use real SQL value when available; otherwise fall back to synthetic data.
+    // sqlTotal === 0 is valid (no transactions in that 10-sec window).
+    const useSql = sqlCacheReady && sqlTotal !== undefined;
+    const raw   = useSql ? sqlTotal! : computeRawTotal(state.config, state.step);
+    const total = useSql
+        ? raw   // SQL data is already the exact 10-sec count — no smoothing
+        : (state.prevTotal === 0 ? raw : Math.round(state.prevTotal * 0.35 + raw * 0.65));
     state.prevTotal = total;
 
     const recent5  = state.ticks.slice(-5).map(t => t.total);
@@ -188,6 +194,43 @@ const comboStates: Map<ComboKey, ComboState> = new Map(
 );
 
 let lastTickAt = 0;
+
+// ─── SQL 10-SECOND CACHE ────────────────────────────────────────────────────
+//
+// Every 10 seconds a background timer fetches the real-time totals from SQL
+// Server (when USE_SQL_SERVER=true).  The result is stored here so that the
+// synchronous getDashboardData() can consume it without awaiting.
+
+type SqlTotalCache = Map<string, number>; // key: `${sqlCanal}|${transaccion}`
+
+let sqlTotalCache: SqlTotalCache = new Map();
+let sqlCacheReady = false;
+
+function makeSqlKey(tipoCanal: string, transaccion: string): string {
+    return `${tipoCanal.trim().toUpperCase()}|${transaccion.trim().toUpperCase()}`;
+}
+
+async function refreshSqlCache(): Promise<void> {
+    try {
+        const rows: RealtimeTotalRow[] = await fetchRealtimeTotals();
+        const next: SqlTotalCache = new Map();
+        for (const row of rows) {
+            next.set(makeSqlKey(row.tipoCanal, row.transaccion), row.total);
+        }
+        sqlTotalCache = next;
+        sqlCacheReady = true;
+    } catch (err) {
+        // keep last cache on error; don't crash the server
+        console.error('[SQL cache] refresh failed:', err);
+    }
+}
+
+// Start background refresh only when SQL Server is enabled.
+// The timer fires every 10 seconds, matching the chart tick interval.
+if (isSqlServerEnabled()) {
+    void refreshSqlCache();                          // first fetch immediately
+    setInterval(() => { void refreshSqlCache(); }, 10_000);
+}
 
 // ─── HOURLY STATE ────────────────────────────────────────────────────────────
 
@@ -305,7 +348,14 @@ function updateAllStates(): void {
         for (let s = 0; s < elapsed; s++) {
             const td = new Date(lastTickAt + ((s + 1) * 10000));
             for (const state of comboStates.values()) {
-                pushComboTick(state, td);
+                // Resolve SQL total for this combo (0 when SQL is enabled but
+                // returned no rows — meaning no transactions in that 10-sec window).
+                let sqlTotal: number | undefined;
+                if (isSqlServerEnabled()) {
+                    const cacheKey = makeSqlKey(state.config.sqlCanal, state.config.transaccion);
+                    sqlTotal = sqlTotalCache.get(cacheKey) ?? 0;
+                }
+                pushComboTick(state, td, sqlTotal);
                 updateHourlyTick(state.config.key, state.ticks[state.ticks.length - 1]);
             }
         }

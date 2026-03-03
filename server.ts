@@ -67,7 +67,7 @@ dashboardWs.on('connection', (socket) => {
     };
 
     pushData();
-    const interval = setInterval(pushData, 1000);
+    const interval = setInterval(pushData, 10000);
 
     socket.on('close', () => {
         clearInterval(interval);
