@@ -136,7 +136,7 @@ class DashboardManager {
     private isSocketConnected = false;
     private reconnectTimer: number | null = null;
     private readonly wsReconnectMs = 3000;
-    private readonly refreshIntervalMs = 10000;
+    private readonly refreshIntervalMs = 60000; // 1 minuto — coincide con la granularidad de los datos
 
     // -- Chart rendering ------------------------------------------
 
@@ -158,73 +158,19 @@ class DashboardManager {
         const lastRatio = ratio5Series[ratio5Series.length - 1] ?? 1;
         const level = toleranceFromRatio5(lastRatio);
 
-        const isUpAt = (idx: number): boolean => (totalSeries[idx] ?? 0) >= (meanSeries[idx] ?? 0);
-        
-        const getDeltaColor = (delta: number) => {
-            if (delta >= 0) return '#64a800'; // Verde
-            if (delta >= -10) return '#f97316'; // Tomate intenso (Naranja)
-            return '#d41414'; // Rojo
+        // ============================================================
+        // BAR COLOR CONFIGURATION — edita estos valores para cambiar
+        // el color de las barras según el nivel de tolerancia (ratio5)
+        // ============================================================
+        const BAR_COLORS: Record<ToleranceLevel, { bg: string; border: string }> = {
+            ok:       { bg: 'rgba(90,158,0,0.78)',   border: '#5a9e00' },   // Verde
+            warning:  { bg: 'rgba(249,115,22,0.82)',  border: '#f97316' },   // Naranja
+            critical: { bg: 'rgba(196,26,0,0.87)',    border: '#c41a00' },   // Rojo
         };
 
-        const lineColor = {
-            neutral: '#94a3b8'
-        };
-
-        const segColorFn = (ctx: any): string => {
-            const i = ctx.p0DataIndex ?? 0;
-            const delta = (totalSeries[i] ?? 0) - (meanSeries[i] ?? 0);
-            return getDeltaColor(delta);
-        };
-
-        const realtimeBgPlugin = {
-            id: `realtimeBg_${comboKey}`,
-            beforeDatasetsDraw(chart: any) {
-                const ctx2 = chart.ctx as CanvasRenderingContext2D;
-                const ca = chart.chartArea;
-                const meanMeta = chart.getDatasetMeta(0);
-                const totalMeta = chart.getDatasetMeta(2);
-                if (!meanMeta?.data?.length || !totalMeta?.data?.length) return;
-
-                ctx2.save();
-                ctx2.beginPath();
-                ctx2.rect(ca.left, ca.top, ca.width, ca.height);
-                ctx2.clip();
-
-                for (let seg = 0; seg < totalMeta.data.length - 1; seg++) {
-                    const delta = totalSeries[seg] - meanSeries[seg];
-                    let band, between;
-                    
-                    if (delta >= 0) {
-                        band = 'rgba(100,168,0,0.12)';
-                        between = 'rgba(100,168,0,0.28)';
-                    } else if (delta >= -10) {
-                        band = 'rgba(249,115,22,0.25)'; // Tomate más intenso
-                        between = 'rgba(249,115,22,0.45)'; // Tomate más intenso
-                    } else {
-                        band = 'rgba(212,20,20,0.11)';
-                        between = 'rgba(212,20,20,0.30)';
-                    }
-
-                    const x0 = totalMeta.data[seg].x;
-                    const x1 = totalMeta.data[seg + 1].x;
-
-                    // Fondo del tramo completo (solo dentro de ejes)
-                    ctx2.fillStyle = band;
-                    ctx2.fillRect(x0, ca.top, Math.max(1, x1 - x0), ca.bottom - ca.top);
-
-                    // Relleno entre histórico y actual
-                    ctx2.beginPath();
-                    ctx2.moveTo(meanMeta.data[seg].x, meanMeta.data[seg].y);
-                    ctx2.lineTo(meanMeta.data[seg + 1].x, meanMeta.data[seg + 1].y);
-                    ctx2.lineTo(totalMeta.data[seg + 1].x, totalMeta.data[seg + 1].y);
-                    ctx2.lineTo(totalMeta.data[seg].x, totalMeta.data[seg].y);
-                    ctx2.closePath();
-                    ctx2.fillStyle = between;
-                    ctx2.fill();
-                }
-
-                ctx2.restore();
-            }
+        const getBarColors = (idx: number) => {
+            const r = ratio5Series[idx] ?? 1;
+            return BAR_COLORS[toleranceFromRatio5(r)];
         };
 
         const data = {
@@ -232,8 +178,9 @@ class DashboardManager {
             datasets: [
                 {
                     label: 'Promedio Historico (Referencia)',
+                    type: 'line' as const,
                     data: meanSeries,
-                    borderColor: lineColor.neutral,
+                    borderColor: '#94a3b8',
                     borderDash: [5, 3],
                     borderWidth: 2,
                     pointRadius: 0,
@@ -243,6 +190,7 @@ class DashboardManager {
                 },
                 {
                     label: 'EMA 9',
+                    type: 'line' as const,
                     data: ema9Series,
                     borderColor: '#f59e0b',
                     borderWidth: 1.6,
@@ -253,17 +201,13 @@ class DashboardManager {
                 },
                 {
                     label: 'Transacciones Actuales (TRX/MIN)',
+                    type: 'bar' as const,
                     data: totalSeries,
-                    borderColor: getDeltaColor((totalSeries[totalSeries.length - 1] ?? 0) - (meanSeries[meanSeries.length - 1] ?? 0)),
-                    borderWidth: 3,
-                    pointRadius: (ctx: any) => (ctx.dataIndex === totalSeries.length - 1 ? 5 : 0),
-                    pointBackgroundColor: (ctx: any) => {
-                        const i = ctx.dataIndex ?? 0;
-                        return getDeltaColor((totalSeries[i] ?? 0) - (meanSeries[i] ?? 0));
-                    },
-                    tension: 0.2,
-                    fill: false,
-                    segment: { borderColor: segColorFn },
+                    backgroundColor: (ctx: any) => getBarColors(ctx.dataIndex).bg,
+                    borderColor: (ctx: any) => getBarColors(ctx.dataIndex).border,
+                    borderWidth: 1,
+                    borderRadius: 2,
+                    borderSkipped: false,
                     order: 3
                 }
             ]
@@ -281,17 +225,13 @@ class DashboardManager {
                     labels: {
                         boxWidth: 11,
                         usePointStyle: true,
-                        pointStyle: 'line',
                         padding: 12,
                         font: { size: 11 }
                     }
                 },
                 tooltip: {
                     callbacks: {
-                        label: (context: any) => {
-                            // Ocultar las etiquetas por defecto de los datasets para personalizar el afterBody
-                            return null;
-                        },
+                        label: (_context: any) => null,
                         afterBody: (items: any[]) => {
                             const i = items[0]?.dataIndex ?? 0;
                             const total = totalSeries[i] ?? 0;
@@ -302,7 +242,6 @@ class DashboardManager {
                             const tol = toleranceFromRatio5(r);
                             const std = stdSeries[i] ?? 0;
                             const ema = ema9Series[i] ?? 0;
-                            
                             return [
                                 `📊 TRX Actuales: ${total}`,
                                 `📈 Promedio Histórico: ${hist}`,
@@ -318,7 +257,8 @@ class DashboardManager {
             },
             scales: {
                 x: {
-                    ticks: { maxTicksLimit: 10, font: { size: 10 }, color: '#64748b' },
+                    // Con datos por minuto mostramos una marca cada ~5 min
+                    ticks: { maxTicksLimit: 12, maxRotation: 0, font: { size: 10 }, color: '#64748b' },
                     grid: { color: 'rgba(0,0,0,0.04)' }
                 },
                 y: {
@@ -328,46 +268,32 @@ class DashboardManager {
             }
         };
 
-        // Preserva estado de leyenda entre updates (ocultar/mostrar datasets)
+        // Crea o recrea el chart como tipo 'bar' (mixed con líneas overlay)
         const chart = this.charts[comboKey];
         if (chart) {
-            const hiddenByLabel = new Map<string, boolean>();
-            for (const ds of chart.data.datasets ?? []) {
-                hiddenByLabel.set(ds.label, !!ds.hidden);
-            }
-
-            // Evita estado roto de tooltip/hover al refrescar mientras hay mouseover
-            try {
-                // Guardar el estado del tooltip activo
-                const activeElements = chart.getActiveElements();
-                const tooltipActive = chart.tooltip?._active;
-
-                chart.data.labels = data.labels as any;
-                chart.data.datasets = data.datasets as any;
-                for (const ds of chart.data.datasets ?? []) {
-                    if (hiddenByLabel.has(ds.label)) {
-                        ds.hidden = hiddenByLabel.get(ds.label) ?? false;
+            // Si el chart existente no es bar, destruir y recrear
+            if ((chart as any).config?.type !== 'bar') {
+                chart.destroy();
+                this.charts[comboKey] = new Chart(canvas, { type: 'bar' as const, data: data as any, options: options as any });
+            } else {
+                try {
+                    const hiddenByLabel = new Map<string, boolean>();
+                    for (const ds of chart.data.datasets ?? []) {
+                        hiddenByLabel.set(ds.label, !!ds.hidden);
                     }
-                }
-                chart.options = options as any;
-                chart.update('none');
-
-                // Restaurar el estado del tooltip si estaba activo
-                if (activeElements && activeElements.length > 0) {
-                    chart.setActiveElements(activeElements);
-                    if (tooltipActive && tooltipActive.length > 0) {
-                        chart.tooltip.setActiveElements(tooltipActive, { x: 0, y: 0 });
+                    chart.data.labels = data.labels as any;
+                    chart.data.datasets = data.datasets as any;
+                    for (const ds of chart.data.datasets ?? []) {
+                        if (hiddenByLabel.has(ds.label)) {
+                            ds.hidden = hiddenByLabel.get(ds.label) ?? false;
+                        }
                     }
+                    chart.options = options as any;
                     chart.update('none');
-                }
-            } catch (_) {}
+                } catch (_) {}
+            }
         } else {
-            this.charts[comboKey] = new Chart(canvas, {
-                type: 'line',
-                plugins: [realtimeBgPlugin],
-                data,
-                options
-            });
+            this.charts[comboKey] = new Chart(canvas, { type: 'bar' as const, data: data as any, options: options as any });
         }
 
         // Update badge

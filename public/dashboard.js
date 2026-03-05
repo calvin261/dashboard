@@ -1,684 +1,592 @@
 "use strict";
+// ================================================================
+// COMBO META
+// ================================================================
+const COMBO_META = [
+    { key: 'atm_avance', label: 'ATM - Avance' },
+    { key: 'atm_deposito', label: 'ATM - Deposito' },
+    { key: 'atm_pago_tc', label: 'ATM - Pago TC' },
+    { key: 'atm_retiro', label: 'ATM - Retiro' },
+    { key: 'atm_transferencias', label: 'ATM - Transferencias' },
+    { key: 'servipagos_avance', label: 'ATM SERVIPAGOS - Avance' },
+    { key: 'servipagos_retiro', label: 'ATM SERVIPAGOS - Retiro' },
+    { key: 'clientes_red_retiro', label: 'CLIENTES ATM RED - Retiro' },
+];
+// ================================================================
+// TOLERANCE HELPERS
+// ================================================================
+const PALETTE = {
+    ok: { stroke: '#5a9e00', fill: 'rgba(90,158,0,0.40)', areafill: 'rgba(90,158,0,0.18)', chartbg: 'rgba(90,158,0,0.10)', row: '' },
+    warning: { stroke: '#c41a00', fill: 'rgba(196,26,0,0.52)', areafill: 'rgba(196,26,0,0.26)', chartbg: 'rgba(196,26,0,0.13)', row: 'row-warning' },
+    critical: { stroke: '#6b0000', fill: 'rgba(107,0,0,0.58)', areafill: 'rgba(107,0,0,0.30)', chartbg: 'rgba(107,0,0,0.16)', row: 'row-critical' },
+};
+function toleranceFromRatio5(ratio5) {
+    if (ratio5 <= 1.25)
+        return 'ok';
+    if (ratio5 <= 1.5)
+        return 'warning';
+    return 'critical';
+}
+function fmt(n, digits = 4) {
+    if (n === null || n === undefined)
+        return 'NULL';
+    return Number(n).toFixed(digits);
+}
+// ================================================================
+// API
+// ================================================================
 class DashboardApi {
     constructor(baseUrl = '/api/dashboard') {
         this.baseUrl = baseUrl;
     }
-    async getDashboardData() {
+    async getData() {
         const url = new URL(`${this.baseUrl}/data`, window.location.origin);
         url.searchParams.set('_t', Date.now().toString());
-        const response = await fetch(url.toString(), {
+        const res = await fetch(url.toString(), {
             cache: 'no-store',
-            headers: {
-                Accept: 'application/json',
-                'Cache-Control': 'no-cache'
-            }
+            headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' }
         });
-        if (!response.ok) {
-            throw new Error(`API error ${response.status}`);
-        }
-        return response.json();
+        if (!res.ok)
+            throw new Error(`API ${res.status}`);
+        return res.json();
     }
 }
+// ================================================================
+// DASHBOARD MANAGER
+// ================================================================
 class DashboardManager {
     constructor() {
-        this.charts = {
-            main: null,
-            hourly: null
-        };
         this.api = new DashboardApi();
-        this.referenceData = [];
-        this.realTimeData = [];
-        this.chartData = {
-            labels: [],
-            historicalSeries: [],
-            realtimeSeries: []
-        };
-        this.cachedHourlyChartData = null;
-        this.hourlyRefreshKey = '';
-        this.refreshIntervalMs = 5000;
-        this.wsReconnectMs = 3000;
-        this.isPolling = false;
+        this.charts = {};
+        this.hourlyCharts = {};
         this.socket = null;
         this.isSocketConnected = false;
         this.reconnectTimer = null;
-        this.hourlySessionStorageKey = 'dashboard-hourly-projection-v1';
-        this.tolerancePalette = {
-            ok: {
-                stroke: '#84bd00',
-                fill: 'rgba(132, 189, 0, 0.16)'
-            },
-            warning: {
-                stroke: '#ff6347',
-                fill: 'rgba(255, 99, 71, 0.18)'
-            },
-            critical: {
-                stroke: '#dc2626',
-                fill: 'rgba(220, 38, 38, 0.20)'
-            }
+        this.wsReconnectMs = 3000;
+        this.refreshIntervalMs = 60000; // 1 minuto — coincide con la granularidad de los datos
+    }
+    // -- Chart rendering ------------------------------------------
+    buildSegmentColorFn(ratio5Series) {
+        return (ctx) => {
+            const i = ctx.p0DataIndex ?? 0;
+            const ratio = ratio5Series[i] ?? 1;
+            return PALETTE[toleranceFromRatio5(ratio)].stroke;
         };
     }
-    getField(row, ...keys) {
-        for (const key of keys) {
-            const value = row[key];
-            if (value !== undefined && value !== null) {
-                return value;
-            }
-        }
-        return undefined;
-    }
-    toNumber(value, fallback = 0) {
-        if (typeof value === 'number' && Number.isFinite(value)) {
-            return value;
-        }
-        if (typeof value === 'string') {
-            const parsed = Number(value);
-            return Number.isFinite(parsed) ? parsed : fallback;
-        }
-        return fallback;
-    }
-    toString(value, fallback = '') {
-        if (typeof value === 'string') {
-            return value;
-        }
-        if (typeof value === 'number') {
-            return String(value);
-        }
-        return fallback;
-    }
-    normalizeHour(rawHour) {
-        const hour = this.toString(rawHour).trim();
-        if (!hour)
-            return '00:00';
-        if (hour.includes(':')) {
-            const [h = '0', m = '0'] = hour.split(':');
-            const hh = this.toNumber(h, 0).toString().padStart(2, '0');
-            const mm = this.toNumber(m, 0).toString().padStart(2, '0');
-            return `${hh}:${mm}`;
-        }
-        const hh = this.toNumber(hour, 0).toString().padStart(2, '0');
-        return `${hh}:00`;
-    }
-    normalizeMinute(rawMinute, hourText) {
-        if (rawMinute !== undefined && rawMinute !== null) {
-            return this.toNumber(rawMinute, 0);
-        }
-        if (hourText && hourText.includes(':')) {
-            const minutePart = hourText.split(':')[1] || '0';
-            return this.toNumber(minutePart, 0);
-        }
-        return 0;
-    }
-    buildTimeLabel(rawHour, rawMinute) {
-        const hourText = this.normalizeHour(rawHour);
-        if (hourText.includes(':')) {
-            const [h = '00', m = '00'] = hourText.split(':');
-            const minute = rawMinute === undefined || rawMinute === null ? this.toNumber(m, 0) : this.toNumber(rawMinute, 0);
-            return `${h.padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        }
-        return `${hourText}:00`;
-    }
-    normalizeReferenceRows(rows) {
-        return rows.map((row) => {
-            const rawHour = this.getField(row, 'hora', 'HORA');
-            const rawMinute = this.getField(row, 'minuto', 'MINUTO');
-            const timeLabel = this.buildTimeLabel(rawHour, rawMinute);
-            return {
-                estado: this.toString(this.getField(row, 'estado', 'ESTADO'), 'DIA NORMAL'),
-                fecha: this.toString(this.getField(row, 'fecha', 'FECHA')),
-                dia: this.toNumber(this.getField(row, 'dia', 'DIA')),
-                mes: this.toNumber(this.getField(row, 'mes', 'MES')),
-                anio: this.toNumber(this.getField(row, 'anio', 'AÑO', 'ANIO', 'year')),
-                hora: timeLabel,
-                minuto: this.normalizeMinute(rawMinute, this.toString(rawHour)),
-                tipoDia: this.toString(this.getField(row, 'tipoDia', 'tipo_dia', 'TIPO_DIA')),
-                transaccion: this.toString(this.getField(row, 'transaccion', 'TRANSACCION')),
-                canal: this.toString(this.getField(row, 'canal', 'tipoCanal', 'tipo_canal', 'TIPO_CANAL')),
-                promedio: this.toNumber(this.getField(row, 'promedio', 'prom_trx_x_minuto', 'PROM_TRX_X_MINUTO'))
-            };
-        });
-    }
-    normalizeRealtimeRows(rows) {
-        return rows.map((row) => {
-            const fechaTrx = this.toString(this.getField(row, 'fechaTrx', 'fecha_trx', 'FECHA_TRX', 'fecha', 'FECHA'));
-            const rawHour = this.getField(row, 'hora', 'HORA');
-            const rawMinute = this.getField(row, 'minuto', 'MINUTO');
-            const timeLabel = this.buildTimeLabel(rawHour, rawMinute);
-            return {
-                fechaTrx,
-                dia: this.toNumber(this.getField(row, 'dia', 'DIA')),
-                mes: this.toNumber(this.getField(row, 'mes', 'MES')),
-                hora: timeLabel,
-                minuto: this.normalizeMinute(rawMinute, this.toString(rawHour)),
-                trxMin: this.toNumber(this.getField(row, 'trxMin', 'trx_min', 'trx_por_minuto', 'TRX_POR_MINUTO')),
-                trxDetalle: this.toNumber(this.getField(row, 'trxDetalle', 'trx_detalle', 'TRX_DETALLE')),
-                transaccion: this.toString(this.getField(row, 'transaccion', 'TRANSACCION')),
-                canal: this.toString(this.getField(row, 'canal', 'tipoCanal', 'tipo_canal', 'TIPO_CANAL'))
-            };
-        });
-    }
-    async init() {
-        this.setLoadingState(true);
-        await this.loadDashboardData();
-        this.setLoadingState(false);
-        this.connectRealtimeStream();
-        this.startAutoRefresh();
-    }
-    applyDashboardPayload(payload) {
-        this.chartData = payload.chart || this.chartData;
-        const rawReference = (payload.tables?.reference || []);
-        const rawRealtime = (payload.tables?.realtime || []);
-        this.referenceData = this.normalizeReferenceRows(rawReference);
-        this.realTimeData = this.normalizeRealtimeRows(rawRealtime);
-        this.renderChart();
-        this.renderTables();
-        this.updateTimestamp(payload.meta?.generatedAt);
-        this.renderError(null);
-    }
-    connectRealtimeStream() {
-        if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+    renderChart(canvasId, comboKey, series) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas)
             return;
-        }
-        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const socketUrl = `${protocol}://${window.location.host}/ws/dashboard`;
-        this.socket = new WebSocket(socketUrl);
-        this.socket.onopen = () => {
-            this.isSocketConnected = true;
-            this.setLoadingState(false);
+        const { labels, totalSeries, meanSeries, ratio5Series } = series;
+        const stdSeries = series.stdSeries ?? meanSeries.map(() => 0);
+        const ema9Series = series.ema9Series ?? totalSeries;
+        const lastRatio = ratio5Series[ratio5Series.length - 1] ?? 1;
+        const level = toleranceFromRatio5(lastRatio);
+        // ============================================================
+        // BAR COLOR CONFIGURATION — edita estos valores para cambiar
+        // el color de las barras según el nivel de tolerancia (ratio5)
+        // ============================================================
+        const BAR_COLORS = {
+            ok: { bg: 'rgba(90,158,0,0.78)', border: '#5a9e00' }, // Verde
+            warning: { bg: 'rgba(249,115,22,0.82)', border: '#f97316' }, // Naranja
+            critical: { bg: 'rgba(196,26,0,0.87)', border: '#c41a00' }, // Rojo
         };
-        this.socket.onmessage = (event) => {
-            try {
-                const message = JSON.parse(event.data);
-                if (message.type === 'dashboard-data' && message.payload) {
-                    this.applyDashboardPayload(message.payload);
+        const getBarColors = (idx) => {
+            const r = ratio5Series[idx] ?? 1;
+            return BAR_COLORS[toleranceFromRatio5(r)];
+        };
+        const data = {
+            labels,
+            datasets: [
+                {
+                    label: 'Promedio Historico (Referencia)',
+                    type: 'line',
+                    data: meanSeries,
+                    borderColor: '#94a3b8',
+                    borderDash: [5, 3],
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.25,
+                    fill: false,
+                    order: 1
+                },
+                {
+                    label: 'EMA 9',
+                    type: 'line',
+                    data: ema9Series,
+                    borderColor: '#f59e0b',
+                    borderWidth: 1.6,
+                    pointRadius: 0,
+                    tension: 0.25,
+                    fill: false,
+                    order: 2
+                },
+                {
+                    label: 'Transacciones Actuales (TRX/MIN)',
+                    type: 'bar',
+                    data: totalSeries,
+                    backgroundColor: (ctx) => getBarColors(ctx.dataIndex).bg,
+                    borderColor: (ctx) => getBarColors(ctx.dataIndex).border,
+                    borderWidth: 1,
+                    borderRadius: 2,
+                    borderSkipped: false,
+                    order: 3
+                }
+            ]
+        };
+        const options = {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 220, easing: 'linear' },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        boxWidth: 11,
+                        usePointStyle: true,
+                        padding: 12,
+                        font: { size: 11 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (_context) => null,
+                        afterBody: (items) => {
+                            const i = items[0]?.dataIndex ?? 0;
+                            const total = totalSeries[i] ?? 0;
+                            const hist = meanSeries[i] ?? 0;
+                            const delta = total - hist;
+                            const isUp = delta >= 0;
+                            const r = ratio5Series[i] ?? 1;
+                            const tol = toleranceFromRatio5(r);
+                            const std = stdSeries[i] ?? 0;
+                            const ema = ema9Series[i] ?? 0;
+                            return [
+                                `📊 TRX Actuales: ${total}`,
+                                `📈 Promedio Histórico: ${hist}`,
+                                `----------------------------------------`,
+                                `${isUp ? '🟢' : '🔴'} Delta: ${delta >= 0 ? '+' : ''}${delta.toFixed(2)} (${isUp ? 'SUBE' : 'BAJA'})`,
+                                `📉 EMA 9: ${ema.toFixed(2)}`,
+                                `⚖️ Ratio 5: ${r.toFixed(4)} [${tol.toUpperCase()}]`,
+                                `⚡ STD 5: ${std.toFixed(4)}`
+                            ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    // Con datos por minuto mostramos una marca cada ~5 min
+                    ticks: { maxTicksLimit: 12, maxRotation: 0, font: { size: 10 }, color: '#64748b' },
+                    grid: { color: 'rgba(0,0,0,0.04)' }
+                },
+                y: {
+                    ticks: { font: { size: 10 }, color: '#64748b' },
+                    grid: { color: 'rgba(0,0,0,0.06)' }
                 }
             }
-            catch (error) {
-                console.error('Mensaje WebSocket inválido:', error);
+        };
+        // Crea o recrea el chart como tipo 'bar' (mixed con líneas overlay)
+        const chart = this.charts[comboKey];
+        if (chart) {
+            // Si el chart existente no es bar, destruir y recrear
+            if (chart.config?.type !== 'bar') {
+                chart.destroy();
+                this.charts[comboKey] = new Chart(canvas, { type: 'bar', data: data, options: options });
+            }
+            else {
+                try {
+                    const hiddenByLabel = new Map();
+                    for (const ds of chart.data.datasets ?? []) {
+                        hiddenByLabel.set(ds.label, !!ds.hidden);
+                    }
+                    chart.data.labels = data.labels;
+                    chart.data.datasets = data.datasets;
+                    for (const ds of chart.data.datasets ?? []) {
+                        if (hiddenByLabel.has(ds.label)) {
+                            ds.hidden = hiddenByLabel.get(ds.label) ?? false;
+                        }
+                    }
+                    chart.options = options;
+                    chart.update('none');
+                }
+                catch (_) { }
+            }
+        }
+        else {
+            this.charts[comboKey] = new Chart(canvas, { type: 'bar', data: data, options: options });
+        }
+        // Update badge
+        const badge = document.getElementById(`badge_${comboKey}`);
+        if (badge) {
+            badge.textContent = level.toUpperCase();
+            badge.className = `status-badge badge-${level}`;
+        }
+        // Simple STD5 trend badge for quick glance (UP / BAJO)
+        const cardHeader = canvas.closest('.card')?.querySelector('.card-header');
+        if (cardHeader) {
+            const stdNow = stdSeries[stdSeries.length - 1] ?? 0;
+            const prevStdWindow = stdSeries.slice(Math.max(0, stdSeries.length - 11), stdSeries.length - 1);
+            const prevStdAvg = prevStdWindow.length > 0
+                ? prevStdWindow.reduce((a, b) => a + b, 0) / prevStdWindow.length
+                : stdNow;
+            const stdUp = stdNow >= prevStdAvg;
+            const stdBadgeId = `std5_badge_${comboKey}`;
+            let stdBadge = document.getElementById(stdBadgeId);
+            if (!stdBadge) {
+                stdBadge = document.createElement('span');
+                stdBadge.id = stdBadgeId;
+                stdBadge.className = 'status-badge std-badge std-low';
+                cardHeader.appendChild(stdBadge);
+            }
+            stdBadge.innerHTML = `STD5 ${stdUp ? '&#9650; SUBE' : '&#9660; BAJA'} ${stdNow.toFixed(2)}`;
+            stdBadge.className = `status-badge std-badge ${stdUp ? 'std-up' : 'std-low'}`;
+        }
+    }
+    // -- Hourly chart rendering ------------------------------------------
+    renderHourlyChart(canvasId, comboKey, series) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas)
+            return;
+        const { labels, totalSeries, meanSeries, ratio5Series } = series;
+        const getDeltaColor = (delta) => {
+            if (delta >= 0)
+                return '#64a800'; // Verde
+            if (delta >= -10)
+                return '#f97316'; // Tomate intenso (Naranja)
+            return '#d41414'; // Rojo
+        };
+        const getDeltaColors = (delta) => {
+            if (delta >= 0)
+                return { stroke: '#64a800', band: 'rgba(100,168,0,0.14)', between: 'rgba(100,168,0,0.32)' };
+            if (delta >= -10)
+                return { stroke: '#f97316', band: 'rgba(249,115,22,0.25)', between: 'rgba(249,115,22,0.45)' }; // Tomate más intenso
+            return { stroke: '#d41414', band: 'rgba(212,20,20,0.13)', between: 'rgba(212,20,20,0.34)' };
+        };
+        const segColorFn = (ctx) => {
+            const i = ctx.p0DataIndex ?? 0;
+            const delta = (totalSeries[i] ?? 0) - (meanSeries[i] ?? 0);
+            return getDeltaColor(delta);
+        };
+        const hourlyBgPlugin = {
+            id: `hourlyBg_${comboKey}`,
+            beforeDatasetsDraw(chart) {
+                const ctx2 = chart.ctx;
+                const ca = chart.chartArea;
+                const totalMeta = chart.getDatasetMeta(1);
+                const meanMeta = chart.getDatasetMeta(0);
+                if (!totalMeta?.data?.length || !meanMeta?.data?.length)
+                    return;
+                ctx2.save();
+                ctx2.beginPath();
+                ctx2.rect(ca.left, ca.top, ca.width, ca.height);
+                ctx2.clip();
+                for (let seg = 0; seg < totalMeta.data.length - 1; seg++) {
+                    const delta = totalSeries[seg] - meanSeries[seg];
+                    const colors = getDeltaColors(delta);
+                    const x0 = totalMeta.data[seg].x;
+                    const x1 = totalMeta.data[seg + 1].x;
+                    // Full-height band by segment (inside XY axes only)
+                    ctx2.fillStyle = colors.band;
+                    ctx2.fillRect(x0, ca.top, Math.max(1, x1 - x0), ca.bottom - ca.top);
+                    // Fill between total and historical lines for the segment
+                    ctx2.beginPath();
+                    ctx2.moveTo(meanMeta.data[seg].x, meanMeta.data[seg].y);
+                    ctx2.lineTo(meanMeta.data[seg + 1].x, meanMeta.data[seg + 1].y);
+                    ctx2.lineTo(totalMeta.data[seg + 1].x, totalMeta.data[seg + 1].y);
+                    ctx2.lineTo(totalMeta.data[seg].x, totalMeta.data[seg].y);
+                    ctx2.closePath();
+                    ctx2.fillStyle = colors.between;
+                    ctx2.fill();
+                }
+                ctx2.restore();
             }
         };
-        this.socket.onerror = () => {
-            this.isSocketConnected = false;
+        const data = {
+            labels,
+            datasets: [
+                {
+                    label: 'Promedio Historico (Referencia)',
+                    data: meanSeries,
+                    borderColor: '#94a3b8',
+                    borderDash: [5, 3],
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.25,
+                    fill: false,
+                    order: 1
+                },
+                {
+                    label: 'Transacciones Actuales (TRX/H)',
+                    data: totalSeries,
+                    borderColor: getDeltaColor((totalSeries[totalSeries.length - 1] ?? 0) - (meanSeries[meanSeries.length - 1] ?? 0)),
+                    borderWidth: 3,
+                    pointRadius: (ctx) => (ctx.dataIndex === totalSeries.length - 1 ? 5 : 0),
+                    pointBackgroundColor: (ctx) => {
+                        const i = ctx.dataIndex ?? 0;
+                        return getDeltaColor((totalSeries[i] ?? 0) - (meanSeries[i] ?? 0));
+                    },
+                    tension: 0.25,
+                    fill: false,
+                    segment: { borderColor: segColorFn },
+                    order: 2
+                }
+            ]
         };
-        this.socket.onclose = () => {
+        const options = {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 350 },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            // Ocultar las etiquetas por defecto de los datasets para personalizar el afterBody
+                            return null;
+                        },
+                        afterBody: (items) => {
+                            const i = items[0]?.dataIndex ?? 0;
+                            const total = totalSeries[i] ?? 0;
+                            const mean = meanSeries[i] ?? 0;
+                            const diff = total - mean;
+                            const isUp = diff >= 0;
+                            const r = ratio5Series[i] ?? 1;
+                            const tol = toleranceFromRatio5(r);
+                            return [
+                                `📊 TRX Actuales: ${total}`,
+                                `📈 Promedio Histórico: ${mean}`,
+                                `----------------------------------------`,
+                                `${isUp ? '🟢' : '🔴'} Delta: ${diff >= 0 ? '+' : ''}${diff.toFixed(2)} (${isUp ? 'SUBE' : 'BAJA'})`,
+                                `⚖️ Ratio 5: ${r.toFixed(4)} [${tol.toUpperCase()}]`
+                            ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { ticks: { maxTicksLimit: 24, font: { size: 10 }, color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.04)' } },
+                y: { ticks: { font: { size: 10 }, color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.06)' } }
+            }
+        };
+        const chart = this.hourlyCharts[comboKey];
+        if (chart) {
+            const hiddenByLabel = new Map();
+            for (const ds of chart.data.datasets ?? []) {
+                hiddenByLabel.set(ds.label, !!ds.hidden);
+            }
+            try {
+                const activeElements = chart.getActiveElements();
+                const tooltipActive = chart.tooltip?._active;
+                chart.data.labels = data.labels;
+                chart.data.datasets = data.datasets;
+                for (const ds of chart.data.datasets ?? []) {
+                    if (hiddenByLabel.has(ds.label)) {
+                        ds.hidden = hiddenByLabel.get(ds.label) ?? false;
+                    }
+                }
+                chart.options = options;
+                chart.update('none');
+                if (activeElements && activeElements.length > 0) {
+                    chart.setActiveElements(activeElements);
+                    if (tooltipActive && tooltipActive.length > 0) {
+                        chart.tooltip.setActiveElements(tooltipActive, { x: 0, y: 0 });
+                    }
+                    chart.update('none');
+                }
+            }
+            catch (_) { }
+        }
+        else {
+            this.hourlyCharts[comboKey] = new Chart(canvas, {
+                type: 'line',
+                plugins: [hourlyBgPlugin],
+                data,
+                options
+            });
+        }
+        const badge = document.getElementById(`hbadge_${comboKey}`);
+        if (badge) {
+            const lastIdx = Math.max(0, totalSeries.length - 1);
+            const delta = (totalSeries[lastIdx] ?? 0) - (meanSeries[lastIdx] ?? 0);
+            const isUp = delta >= 0;
+            badge.textContent = isUp ? 'SUBE' : 'BAJA';
+            badge.className = `status-badge ${isUp ? 'badge-ok' : 'badge-critical'}`;
+        }
+    }
+    // -- Table rendering ------------------------------------------
+    parseFechaTrx(fecha) {
+        const parts = fecha.split(' ');
+        if (parts.length !== 2)
+            return 0;
+        const dateParts = parts[0].split('-');
+        const timeParts = parts[1].split(':');
+        if (dateParts.length !== 3 || timeParts.length !== 2)
+            return 0;
+        const [dd, mm, yyyy] = dateParts;
+        const [hh, min] = timeParts;
+        return new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min)).getTime();
+    }
+    renderRealtimeTables(data) {
+        const tbody = document.getElementById('rt_body_all');
+        if (!tbody)
+            return;
+        let allRows = [];
+        for (const { key } of COMBO_META) {
+            const rows = data[key] ?? [];
+            allRows = allRows.concat(rows);
+        }
+        allRows.sort((a, b) => this.parseFechaTrx(b.fechaTrx) - this.parseFechaTrx(a.fechaTrx));
+        tbody.innerHTML = allRows.map(row => {
+            const tol = row.estado ?? toleranceFromRatio5(row.ratio5);
+            const cls = PALETTE[tol]?.row ?? '';
+            return `<tr class="${cls}">
+                <td>${row.fechaTrx}</td>
+                <td>${row.tipoCanal}</td>
+                <td>${row.transaccion}</td>
+                <td>${row.total}</td>
+                <td>${fmt(row.rollingSd5, 6)}</td>
+                <td><span class="ratio-chip chip-${tol}">${fmt(row.ratio5, 4)}</span></td>
+                <td><span class="estado-pill pill-${tol}">${tol.toUpperCase()}</span></td>
+            </tr>`;
+        }).join('');
+    }
+    renderHistoricalTables(data) {
+        const tbody = document.getElementById('hist_body_all');
+        if (!tbody)
+            return;
+        let allRows = [];
+        for (const { key } of COMBO_META) {
+            const rows = data[key] ?? [];
+            allRows = allRows.concat(rows);
+        }
+        allRows.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+        tbody.innerHTML = allRows.map(row => {
+            const ratio = row.ratio5 ?? 1;
+            const tol = toleranceFromRatio5(ratio);
+            const cls = PALETTE[tol].row;
+            return `<tr class="${cls}">
+                <td>${row.fecha}</td>
+                <td>${row.tipoDia}</td>
+                <td>${row.tipoCanal}</td>
+                <td>${row.transaccion}</td>
+                <td>${row.total}</td>
+                <td>${row.lag1 ?? 'NULL'}</td>
+                <td>${row.lag5 ?? 'NULL'}</td>
+                <td>${row.lag15 ?? 'NULL'}</td>
+                <td>${fmt(row.rollingMean5, 4)}</td>
+                <td>${fmt(row.rollingMean15, 4)}</td>
+                <td>${fmt(row.rollingSd5, 6)}</td>
+                <td><span class="ratio-chip chip-${tol}">${row.ratio5 !== null ? fmt(row.ratio5, 4) : 'NULL'}</span></td>
+                <td>${row.target}</td>
+            </tr>`;
+        }).join('');
+    }
+    // -- Apply payload --------------------------------------------
+    applyPayload(payload) {
+        // Render 8 individual combo charts
+        if (payload.charts) {
+            for (const { key } of COMBO_META) {
+                const series = payload.charts[key];
+                if (series) {
+                    this.renderChart(`chart_${key}`, key, series);
+                }
+            }
+        }
+        // Render hourly charts
+        if (payload.hourlyCharts) {
+            for (const { key } of COMBO_META) {
+                const series = payload.hourlyCharts[key];
+                if (series) {
+                    this.renderHourlyChart(`hchart_${key}`, key, series);
+                }
+            }
+        }
+        // Render tables
+        if (payload.tables?.realtime)
+            this.renderRealtimeTables(payload.tables.realtime);
+        if (payload.tables?.historical)
+            this.renderHistoricalTables(payload.tables.historical);
+        // Update timestamp
+        const ts = payload.meta?.generatedAt ?? new Date().toISOString();
+        const el = document.getElementById('lastUpdate');
+        if (el)
+            el.textContent = `Ultima actualizacion: ${new Date(ts).toLocaleTimeString('es-EC')}`;
+    }
+    // -- Loading state --------------------------------------------
+    setLoadingState(loading) {
+        const dot = document.querySelector('.status-indicator');
+        if (dot)
+            dot.style.opacity = loading ? '0.3' : '1';
+    }
+    // -- WebSocket ------------------------------------------------
+    connectRealtimeStream() {
+        const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsUrl = `${scheme}://${window.location.host}/ws/dashboard`;
+        try {
+            this.socket = new WebSocket(wsUrl);
+        }
+        catch (_) {
+            this.scheduleReconnect();
+            return;
+        }
+        this.socket.addEventListener('open', () => {
+            this.isSocketConnected = true;
+        });
+        this.socket.addEventListener('message', (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'dashboard-data') {
+                    this.applyPayload(msg.payload);
+                }
+            }
+            catch (_) { }
+        });
+        this.socket.addEventListener('close', () => {
             this.isSocketConnected = false;
             this.scheduleReconnect();
-        };
+        });
+        this.socket.addEventListener('error', () => {
+            this.isSocketConnected = false;
+            this.socket?.close();
+        });
     }
     scheduleReconnect() {
-        if (this.reconnectTimer !== null) {
-            window.clearTimeout(this.reconnectTimer);
-        }
+        if (this.reconnectTimer !== null)
+            return;
         this.reconnectTimer = window.setTimeout(() => {
+            this.reconnectTimer = null;
             this.connectRealtimeStream();
         }, this.wsReconnectMs);
     }
+    // -- Initial HTTP load ----------------------------------------
     async loadDashboardData() {
-        if (this.isPolling)
-            return;
-        this.isPolling = true;
         try {
-            const payload = await this.api.getDashboardData();
-            this.applyDashboardPayload(payload);
+            const data = await this.api.getData();
+            this.applyPayload(data);
         }
-        catch (error) {
-            console.error('No se pudo cargar la data del dashboard:', error);
-            this.renderError('No se pudo conectar con la API. Mostrando último estado disponible.');
-            this.updateTimestamp();
-        }
-        finally {
-            this.isPolling = false;
+        catch (err) {
+            console.error('Dashboard load error:', err);
         }
     }
-    setLoadingState(isLoading) {
-        const badge = document.querySelector('.update-badge');
-        if (!badge)
-            return;
-        badge.textContent = isLoading ? 'Cargando datos...' : 'Análisis de Tendencia';
-    }
-    renderError(message) {
-        const headerInfo = document.querySelector('.header-info');
-        if (!headerInfo)
-            return;
-        let errorEl = document.getElementById('apiError');
-        if (!message) {
-            errorEl?.remove();
-            return;
-        }
-        if (!errorEl) {
-            errorEl = document.createElement('span');
-            errorEl.id = 'apiError';
-            errorEl.style.color = '#ef4444';
-            errorEl.style.fontWeight = '600';
-            headerInfo.appendChild(errorEl);
-        }
-        errorEl.textContent = message;
-    }
-    getToleranceLevel(historical, current) {
-        if (historical <= 0) {
-            return current <= 0 ? 'ok' : 'critical';
-        }
-        const diffPercent = ((current - historical) / historical) * 100;
-        if (diffPercent <= 10)
-            return 'ok';
-        if (diffPercent <= 25)
-            return 'warning';
-        return 'critical';
-    }
-    getLocalDateKey(date) {
-        const yyyy = String(date.getFullYear());
-        const mm = String(date.getMonth() + 1).padStart(2, '0');
-        const dd = String(date.getDate()).padStart(2, '0');
-        return `${yyyy}-${mm}-${dd}`;
-    }
-    getRealtimeAnchor(source) {
-        if (source.realtimeSeries.length === 0)
-            return 0;
-        const window = source.realtimeSeries.slice(-12);
-        const sum = window.reduce((acc, value) => acc + value, 0);
-        return sum / Math.max(1, window.length);
-    }
-    pseudoRandom(seed) {
-        const x = Math.sin(seed) * 10000;
-        return x - Math.floor(x);
-    }
-    getSyntheticHistorical(hour, dateSeed) {
-        const waveA = Math.sin((hour + dateSeed) * 0.42) * 7;
-        const waveB = Math.cos((hour + dateSeed) * 0.18) * 4;
-        const base = 16 + waveA + waveB;
-        return Math.max(2, Math.round(base));
-    }
-    getBandDeviationTarget(band, hour, dateSeed) {
-        const jitter = (this.pseudoRandom((hour + 1) * (dateSeed + 1)) - 0.5) * 0.04;
-        if (band === 'ok')
-            return 0.05 + jitter;
-        if (band === 'warning')
-            return 0.18 + jitter;
-        return 0.33 + jitter;
-    }
-    buildBandSequence(size) {
-        if (size <= 0)
-            return [];
-        const bands = Array.from({ length: size }, () => {
-            const roll = Math.random() * 100;
-            if (roll < 50)
-                return 'ok';
-            if (roll < 80)
-                return 'warning';
-            return 'critical';
-        });
-        if (size >= 3) {
-            if (!bands.includes('ok'))
-                bands[0] = 'ok';
-            if (!bands.includes('warning'))
-                bands[Math.floor(size / 2)] = 'warning';
-            if (!bands.includes('critical'))
-                bands[size - 1] = 'critical';
-        }
-        return bands;
-    }
-    saveHourlySession(state) {
-        try {
-            sessionStorage.setItem(this.hourlySessionStorageKey, JSON.stringify(state));
-        }
-        catch {
-            // Ignore session storage errors silently.
-        }
-    }
-    loadHourlySession() {
-        try {
-            const raw = sessionStorage.getItem(this.hourlySessionStorageKey);
-            if (!raw)
-                return null;
-            return JSON.parse(raw);
-        }
-        catch {
-            return null;
-        }
-    }
-    createHourlySession(source, now) {
-        const dateKey = this.getLocalDateKey(now);
-        const dateSeed = Number(dateKey.replace(/-/g, ''));
-        const labels = [];
-        const historicalSeries = [];
-        for (let hour = 0; hour <= 23; hour += 1) {
-            labels.push(`${String(hour).padStart(2, '0')}:00`);
-            historicalSeries.push(this.getSyntheticHistorical(hour, dateSeed));
-        }
-        const bands = this.buildBandSequence(labels.length);
-        const realtimeSeries = [];
-        const anchor = this.getRealtimeAnchor(source);
-        for (let index = 0; index < labels.length; index += 1) {
-            const hour = index;
-            const deviationTarget = this.getBandDeviationTarget(bands[index] || 'ok', hour, dateSeed);
-            const projected = historicalSeries[index] * (1 + deviationTarget);
-            if (index === 0) {
-                const blended = anchor > 0 ? (anchor * 0.65) + (projected * 0.35) : projected;
-                realtimeSeries.push(Math.max(0, Math.round(blended)));
-            }
-            else {
-                const blended = (realtimeSeries[index - 1] * 0.35) + (projected * 0.65);
-                realtimeSeries.push(Math.max(0, Math.round(blended)));
-            }
-        }
-        return {
-            dateKey,
-            labels,
-            historicalSeries,
-            realtimeSeries,
-            bands
-        };
-    }
-    updateHourlyProjection(state, source, now) {
-        const dateSeed = Number(state.dateKey.replace(/-/g, ''));
-        const anchor = this.getRealtimeAnchor(source);
-        const currentHour = now.getHours();
-        if (state.realtimeSeries.length === 0)
-            return state;
-        const currentTarget = state.historicalSeries[currentHour] * (1 + this.getBandDeviationTarget(state.bands[currentHour] || 'ok', currentHour, dateSeed));
-        const currentValue = anchor > 0 ? (state.realtimeSeries[currentHour] * 0.45) + (anchor * 0.55) : currentTarget;
-        state.realtimeSeries[currentHour] = Math.max(0, Math.round(currentValue));
-        // Horas pasadas: mantener consistencia con leve estabilización.
-        for (let index = 0; index < currentHour; index += 1) {
-            const band = state.bands[index] || 'ok';
-            const target = state.historicalSeries[index] * (1 + this.getBandDeviationTarget(band, index, dateSeed));
-            const stable = (state.realtimeSeries[index] * 0.7) + (target * 0.3);
-            state.realtimeSeries[index] = Math.max(0, Math.round(stable));
-        }
-        // Hora actual en adelante: proyección encadenada.
-        for (let index = currentHour + 1; index < state.realtimeSeries.length; index += 1) {
-            const hour = index;
-            const band = state.bands[index] || 'ok';
-            const target = state.historicalSeries[index] * (1 + this.getBandDeviationTarget(band, hour, dateSeed));
-            const nextValue = (state.realtimeSeries[index - 1] * 0.35) + (target * 0.65);
-            state.realtimeSeries[index] = Math.max(0, Math.round(nextValue));
-        }
-        return state;
-    }
-    getHourlyChartData(source) {
-        const now = new Date();
-        const currentDateKey = this.getLocalDateKey(now);
-        const loadedState = this.loadHourlySession();
-        const needsNewSession = !loadedState
-            || loadedState.dateKey !== currentDateKey
-            || loadedState.labels.length !== 24;
-        let state;
-        if (needsNewSession || !loadedState) {
-            state = this.createHourlySession(source, now);
-        }
-        else {
-            state = this.updateHourlyProjection(loadedState, source, now);
-        }
-        this.saveHourlySession(state);
-        return {
-            labels: state.labels,
-            historicalSeries: state.historicalSeries,
-            realtimeSeries: state.realtimeSeries
-        };
-    }
-    renderComparisonChart(chartKey, canvasId, chartSeries, xAxisTitle, isHourlyView) {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx)
-            return;
-        if (this.charts[chartKey]) {
-            this.charts[chartKey].destroy();
-        }
-        const toleranceLevels = chartSeries.realtimeSeries.map((current, index) => {
-            const historical = chartSeries.historicalSeries[index] || 0;
-            return this.getToleranceLevel(historical, current);
-        });
-        const pointColors = toleranceLevels.map((level) => this.tolerancePalette[level].stroke);
-        const segmentLevels = chartSeries.realtimeSeries.slice(0, -1).map((_value, index) => {
-            const historicalAvg = ((chartSeries.historicalSeries[index] || 0) + (chartSeries.historicalSeries[index + 1] || 0)) / 2;
-            const realtimeAvg = ((chartSeries.realtimeSeries[index] || 0) + (chartSeries.realtimeSeries[index + 1] || 0)) / 2;
-            return this.getToleranceLevel(historicalAvg, realtimeAvg);
-        });
-        const segmentAreaPlugin = {
-            id: 'segmentAreaFill',
-            beforeDatasetsDraw: (chart, _args, pluginOptions) => {
-                const levels = pluginOptions?.levels || [];
-                const realtimeMeta = chart.getDatasetMeta(1);
-                const historicalMeta = chart.getDatasetMeta(0);
-                if (!realtimeMeta || !historicalMeta)
-                    return;
-                const realtimePoints = realtimeMeta.data || [];
-                const historicalPoints = historicalMeta.data || [];
-                const segmentCount = Math.min(realtimePoints.length, historicalPoints.length) - 1;
-                if (segmentCount <= 0)
-                    return;
-                const ctx = chart.ctx;
-                const chartTop = chart.chartArea.top;
-                const chartBottom = chart.chartArea.bottom;
-                ctx.save();
-                for (let index = 0; index < segmentCount; index += 1) {
-                    const rt0 = realtimePoints[index];
-                    const rt1 = realtimePoints[index + 1];
-                    const hs0 = historicalPoints[index];
-                    const hs1 = historicalPoints[index + 1];
-                    if (!rt0 || !rt1 || !hs0 || !hs1)
-                        continue;
-                    const level = levels[index] || 'ok';
-                    const fillColor = this.tolerancePalette[level].fill;
-                    // Fondo por segmento (detrás del área), sutil para no saturar el gráfico.
-                    const left = Math.min(rt0.x, hs0.x);
-                    const right = Math.max(rt1.x, hs1.x);
-                    const width = Math.max(0, right - left);
-                    if (width > 0) {
-                        ctx.fillStyle = fillColor.replace(/0\.[0-9]+\)/, '0.08)');
-                        ctx.fillRect(left, chartTop, width, chartBottom - chartTop);
-                    }
-                    ctx.beginPath();
-                    ctx.moveTo(rt0.x, rt0.y);
-                    ctx.lineTo(rt1.x, rt1.y);
-                    ctx.lineTo(hs1.x, hs1.y);
-                    ctx.lineTo(hs0.x, hs0.y);
-                    ctx.closePath();
-                    ctx.fillStyle = fillColor;
-                    ctx.fill();
-                }
-                ctx.restore();
-            }
-        };
-        this.charts[chartKey] = new Chart(ctx, {
-            type: 'line',
-            plugins: [segmentAreaPlugin],
-            data: {
-                labels: chartSeries.labels,
-                datasets: [
-                    {
-                        label: 'Promedio Histórico (Referencia)',
-                        data: chartSeries.historicalSeries,
-                        borderColor: '#9ca3af',
-                        backgroundColor: 'rgba(148, 163, 184, 0.08)',
-                        borderWidth: 2,
-                        borderDash: [5, 5],
-                        tension: 0.22,
-                        fill: false,
-                        pointRadius: 0,
-                        pointHoverRadius: 4
-                    },
-                    {
-                        label: 'Transacciones Actuales (TRX/MIN)',
-                        data: chartSeries.realtimeSeries,
-                        borderColor: '#84bd00',
-                        backgroundColor: 'rgba(132, 189, 0, 0.16)',
-                        borderWidth: 3.2,
-                        tension: 0.28,
-                        fill: false,
-                        segment: {
-                            borderColor: (segmentCtx) => {
-                                const level = segmentLevels[segmentCtx.p0DataIndex] || 'ok';
-                                return this.tolerancePalette[level].stroke;
-                            }
-                        },
-                        pointBackgroundColor: pointColors,
-                        pointBorderColor: pointColors,
-                        pointRadius: (ctx) => {
-                            const lastIndex = chartSeries.realtimeSeries.length - 1;
-                            const label = chartSeries.labels[ctx.dataIndex] || '';
-                            const isHourlyMark = isHourlyView || label.endsWith(':00:00');
-                            if (ctx.dataIndex === lastIndex)
-                                return 5;
-                            return isHourlyMark ? 3 : 0;
-                        },
-                        pointHoverRadius: 7,
-                        pointHitRadius: 10
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: {
-                    duration: 420,
-                    easing: 'linear'
-                },
-                interaction: {
-                    mode: 'index',
-                    intersect: false
-                },
-                plugins: {
-                    segmentAreaFill: {
-                        levels: segmentLevels
-                    },
-                    legend: {
-                        position: 'top',
-                        labels: {
-                            usePointStyle: true,
-                            pointStyle: 'circle',
-                            color: '#374151',
-                            font: {
-                                size: 12,
-                                weight: '600'
-                            }
-                        }
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                        backgroundColor: 'rgba(17, 24, 39, 0.92)',
-                        borderColor: '#374151',
-                        borderWidth: 1,
-                        titleColor: '#f9fafb',
-                        bodyColor: '#e5e7eb',
-                        padding: 10,
-                        displayColors: true
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: 'rgba(148, 163, 184, 0.22)'
-                        },
-                        ticks: {
-                            color: '#475569'
-                        },
-                        title: {
-                            display: true,
-                            text: 'Transacciones',
-                            color: '#334155',
-                            font: {
-                                size: 12,
-                                weight: '600'
-                            }
-                        }
-                    },
-                    x: {
-                        grid: {
-                            color: 'rgba(148, 163, 184, 0.12)'
-                        },
-                        ticks: {
-                            color: '#475569',
-                            maxRotation: 0,
-                            autoSkip: true,
-                            maxTicksLimit: 12
-                        },
-                        title: {
-                            display: true,
-                            text: xAxisTitle,
-                            color: '#334155',
-                            font: {
-                                size: 12,
-                                weight: '600'
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-    renderChart() {
-        this.renderComparisonChart('main', 'mainChart', this.chartData, 'Tiempo real (HH:mm:ss)', false);
-        const now = new Date();
-        const refreshKey = `${this.getLocalDateKey(now)}-${String(now.getHours()).padStart(2, '0')}`;
-        if (!this.cachedHourlyChartData || this.hourlyRefreshKey !== refreshKey) {
-            this.cachedHourlyChartData = this.getHourlyChartData(this.chartData);
-            this.hourlyRefreshKey = refreshKey;
-        }
-        this.renderComparisonChart('hourly', 'hourlyChart', this.cachedHourlyChartData, 'Franja horaria (HH:00)', true);
-    }
-    renderTables() {
-        this.renderRealtimeTable();
-        this.renderReferenceTable();
-    }
-    renderReferenceTable() {
-        const tbody = document.getElementById('tableReferenceBody');
-        if (!tbody)
-            return;
-        tbody.innerHTML = '';
-        this.referenceData.forEach((row) => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row.estado}</td>
-                <td>${row.fecha}</td>
-                <td>${row.dia}</td>
-                <td>${row.mes}</td>
-                <td>${row.anio}</td>
-                <td>${row.hora}</td>
-                <td>${row.minuto}</td>
-                <td>${row.tipoDia}</td>
-                <td>${row.transaccion}</td>
-                <td>${row.canal}</td>
-                <td><strong>${row.promedio}</strong></td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-    renderRealtimeTable() {
-        const tbody = document.getElementById('tableRealTimeBody');
-        if (!tbody)
-            return;
-        tbody.innerHTML = '';
-        this.realTimeData.forEach((row) => {
-            const tr = document.createElement('tr');
-            const highlight = row.trxMin > 50 ? 'style="color:#ef4444;font-weight:700;"' : '';
-            tr.innerHTML = `
-                <td>${row.fechaTrx}</td>
-                <td>${row.dia}</td>
-                <td>${row.mes}</td>
-                <td>${row.hora}</td>
-                <td>${row.minuto}</td>
-                <td ${highlight}>${row.trxMin}</td>
-                <td>${row.transaccion}</td>
-                <td>${row.canal}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-    updateTimestamp(serverTime) {
-        const date = serverTime ? new Date(serverTime) : new Date();
-        const timestamp = date.toLocaleTimeString('es-ES');
-        const el = document.getElementById('lastUpdate');
-        if (el) {
-            el.textContent = `Última actualización: ${timestamp}`;
-        }
-    }
+    // -- HTTP fallback polling ------------------------------------
     startAutoRefresh() {
         window.setInterval(() => {
             if (this.isSocketConnected)
                 return;
             this.loadDashboardData();
         }, this.refreshIntervalMs);
+    }
+    // -- Entry point ----------------------------------------------
+    async init() {
+        this.setLoadingState(true);
+        this.connectRealtimeStream();
+        await this.loadDashboardData();
+        this.setLoadingState(false);
+        this.startAutoRefresh();
     }
 }
 document.addEventListener('DOMContentLoaded', async () => {
