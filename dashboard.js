@@ -251,86 +251,42 @@ class DashboardManager {
         if (!canvas)
             return;
         const { labels, totalSeries, meanSeries, ratio5Series } = series;
-        const getDeltaColor = (delta) => {
-            if (delta >= 0)
-                return '#64a800'; // Verde
-            if (delta >= -10)
-                return '#f97316'; // Tomate intenso (Naranja)
-            return '#d41414'; // Rojo
+        // ============================================================
+        // BAR COLOR CONFIGURATION — edita estos valores para cambiar
+        // el color de las barras según el nivel de tolerancia (ratio5)
+        // ============================================================
+        const BAR_COLORS = {
+            ok: { bg: 'rgba(90,158,0,0.78)', border: '#5a9e00' }, // Verde
+            warning: { bg: 'rgba(249,115,22,0.82)', border: '#f97316' }, // Naranja
+            critical: { bg: 'rgba(196,26,0,0.87)', border: '#c41a00' }, // Rojo
         };
-        const getDeltaColors = (delta) => {
-            if (delta >= 0)
-                return { stroke: '#64a800', band: 'rgba(100,168,0,0.14)', between: 'rgba(100,168,0,0.32)' };
-            if (delta >= -10)
-                return { stroke: '#f97316', band: 'rgba(249,115,22,0.25)', between: 'rgba(249,115,22,0.45)' }; // Tomate más intenso
-            return { stroke: '#d41414', band: 'rgba(212,20,20,0.13)', between: 'rgba(212,20,20,0.34)' };
-        };
-        const segColorFn = (ctx) => {
-            const i = ctx.p0DataIndex ?? 0;
-            const delta = (totalSeries[i] ?? 0) - (meanSeries[i] ?? 0);
-            return getDeltaColor(delta);
-        };
-        const hourlyBgPlugin = {
-            id: `hourlyBg_${comboKey}`,
-            beforeDatasetsDraw(chart) {
-                const ctx2 = chart.ctx;
-                const ca = chart.chartArea;
-                const totalMeta = chart.getDatasetMeta(1);
-                const meanMeta = chart.getDatasetMeta(0);
-                if (!totalMeta?.data?.length || !meanMeta?.data?.length)
-                    return;
-                ctx2.save();
-                ctx2.beginPath();
-                ctx2.rect(ca.left, ca.top, ca.width, ca.height);
-                ctx2.clip();
-                for (let seg = 0; seg < totalMeta.data.length - 1; seg++) {
-                    const delta = totalSeries[seg] - meanSeries[seg];
-                    const colors = getDeltaColors(delta);
-                    const x0 = totalMeta.data[seg].x;
-                    const x1 = totalMeta.data[seg + 1].x;
-                    // Full-height band by segment (inside XY axes only)
-                    ctx2.fillStyle = colors.band;
-                    ctx2.fillRect(x0, ca.top, Math.max(1, x1 - x0), ca.bottom - ca.top);
-                    // Fill between total and historical lines for the segment
-                    ctx2.beginPath();
-                    ctx2.moveTo(meanMeta.data[seg].x, meanMeta.data[seg].y);
-                    ctx2.lineTo(meanMeta.data[seg + 1].x, meanMeta.data[seg + 1].y);
-                    ctx2.lineTo(totalMeta.data[seg + 1].x, totalMeta.data[seg + 1].y);
-                    ctx2.lineTo(totalMeta.data[seg].x, totalMeta.data[seg].y);
-                    ctx2.closePath();
-                    ctx2.fillStyle = colors.between;
-                    ctx2.fill();
-                }
-                ctx2.restore();
-            }
+        const getBarColors = (idx) => {
+            const r = ratio5Series[idx] ?? 1;
+            return BAR_COLORS[toleranceFromRatio5(r)];
         };
         const data = {
             labels,
             datasets: [
                 {
                     label: 'Promedio Historico (Referencia)',
+                    type: 'line',
                     data: meanSeries,
-                    borderColor: '#94a3b8',
-                    borderDash: [5, 3],
-                    borderWidth: 2,
+                    borderColor: '#64748b',
+                    borderWidth: 2.5,
                     pointRadius: 0,
-                    tension: 0.25,
+                    tension: 0.3,
                     fill: false,
                     order: 1
                 },
                 {
                     label: 'Transacciones Actuales (TRX/H)',
+                    type: 'bar',
                     data: totalSeries,
-                    borderColor: getDeltaColor((totalSeries[totalSeries.length - 1] ?? 0) - (meanSeries[meanSeries.length - 1] ?? 0)),
-                    borderWidth: 3,
-                    pointRadius: (ctx) => (ctx.dataIndex === totalSeries.length - 1 ? 5 : 0),
-                    pointBackgroundColor: (ctx) => {
-                        const i = ctx.dataIndex ?? 0;
-                        return getDeltaColor((totalSeries[i] ?? 0) - (meanSeries[i] ?? 0));
-                    },
-                    tension: 0.25,
-                    fill: false,
-                    segment: { borderColor: segColorFn },
+                    backgroundColor: (ctx) => getBarColors(ctx.dataIndex).bg,
+                    borderColor: (ctx) => getBarColors(ctx.dataIndex).border,
+                    borderWidth: 1,
+                    borderRadius: 2,
+                    borderSkipped: false,
                     order: 2
                 }
             ]
@@ -344,10 +300,7 @@ class DashboardManager {
                 legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
                 tooltip: {
                     callbacks: {
-                        label: (context) => {
-                            // Ocultar las etiquetas por defecto de los datasets para personalizar el afterBody
-                            return null;
-                        },
+                        label: (_context) => null,
                         afterBody: (items) => {
                             const i = items[0]?.dataIndex ?? 0;
                             const total = totalSeries[i] ?? 0;
@@ -368,45 +321,37 @@ class DashboardManager {
                 }
             },
             scales: {
-                x: { ticks: { maxTicksLimit: 24, font: { size: 10 }, color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.04)' } },
+                x: { ticks: { maxTicksLimit: 24, maxRotation: 0, font: { size: 10 }, color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.04)' } },
                 y: { ticks: { font: { size: 10 }, color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.06)' } }
             }
         };
         const chart = this.hourlyCharts[comboKey];
         if (chart) {
-            const hiddenByLabel = new Map();
-            for (const ds of chart.data.datasets ?? []) {
-                hiddenByLabel.set(ds.label, !!ds.hidden);
+            if (chart.config?.type !== 'bar') {
+                chart.destroy();
+                this.hourlyCharts[comboKey] = new Chart(canvas, { type: 'bar', data: data, options: options });
             }
-            try {
-                const activeElements = chart.getActiveElements();
-                const tooltipActive = chart.tooltip?._active;
-                chart.data.labels = data.labels;
-                chart.data.datasets = data.datasets;
-                for (const ds of chart.data.datasets ?? []) {
-                    if (hiddenByLabel.has(ds.label)) {
-                        ds.hidden = hiddenByLabel.get(ds.label) ?? false;
+            else {
+                try {
+                    const hiddenByLabel = new Map();
+                    for (const ds of chart.data.datasets ?? []) {
+                        hiddenByLabel.set(ds.label, !!ds.hidden);
                     }
-                }
-                chart.options = options;
-                chart.update('none');
-                if (activeElements && activeElements.length > 0) {
-                    chart.setActiveElements(activeElements);
-                    if (tooltipActive && tooltipActive.length > 0) {
-                        chart.tooltip.setActiveElements(tooltipActive, { x: 0, y: 0 });
+                    chart.data.labels = data.labels;
+                    chart.data.datasets = data.datasets;
+                    for (const ds of chart.data.datasets ?? []) {
+                        if (hiddenByLabel.has(ds.label)) {
+                            ds.hidden = hiddenByLabel.get(ds.label) ?? false;
+                        }
                     }
+                    chart.options = options;
                     chart.update('none');
                 }
+                catch (_) { }
             }
-            catch (_) { }
         }
         else {
-            this.hourlyCharts[comboKey] = new Chart(canvas, {
-                type: 'line',
-                plugins: [hourlyBgPlugin],
-                data,
-                options
-            });
+            this.hourlyCharts[comboKey] = new Chart(canvas, { type: 'bar', data: data, options: options });
         }
         const badge = document.getElementById(`hbadge_${comboKey}`);
         if (badge) {
